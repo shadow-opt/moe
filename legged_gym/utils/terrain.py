@@ -104,7 +104,7 @@ class Terrain:
 
         stepping_stones_size = 1.5 * (1.05 - difficulty)
         stone_distance = 0.05 if difficulty==0 else 0.1
-        gap_size = 1. * difficulty
+        gap_size = 0.1 + 0.07 * difficulty
         # pit_depth = 1. * difficulty  # 删除坑洞
         amplitude = 0.1 + 0.2 * difficulty
         
@@ -146,7 +146,8 @@ class Terrain:
         elif choice < self.proportions[7]:  # 间隙
             terrain.terrain_name = "gap"
             terrain.terrain_id = 7
-            gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
+            # gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
+            gap_plus_terrain(terrain, gap_size=gap_size)
         else:  # 平地
             terrain.terrain_name = "flat"
             terrain.terrain_id = 8
@@ -212,7 +213,7 @@ def gap_plus_terrain(terrain, gap_size = 0.1, platform_size=4.0):
     x3 = x2 + int(0.4/terrain.horizontal_scale) + 1
     x4 = x3 + gap_size
 
-    y3 = y2 + (0.4/terrain.horizontal_scale) +1
+    y3 = y2 + int(0.4/terrain.horizontal_scale) +1
     y4 = y3 + gap_size
 
     terrain.height_field_raw[center_x-x4 : center_x + x4, center_y-y4 : center_y + y4] = -1000
@@ -220,3 +221,4 @@ def gap_plus_terrain(terrain, gap_size = 0.1, platform_size=4.0):
 
     terrain.height_field_raw[center_x-x2 : center_x + x2, center_y-y2 : center_y + y2] = -1000
     terrain.height_field_raw[center_x-x1 : center_x + x1, center_y-y1 : center_y + y1] = 0
+
