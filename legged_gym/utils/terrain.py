@@ -195,3 +195,28 @@ def pit_terrain(terrain, depth, platform_size=1.):
     y1 = terrain.width // 2 - platform_size
     y2 = terrain.width // 2 + platform_size
     terrain.height_field_raw[x1:x2, y1:y2] = -depth
+
+def gap_plus_terrain(terrain, gap_size = 0.1, platform_size=4.0):
+    platform_size = 4.5
+    # gap_size = 0.15
+    gap_size = int(gap_size / terrain.horizontal_scale)
+    platform_size = int(platform_size / terrain.horizontal_scale)
+
+    center_x = terrain.length // 2
+    center_y = terrain.width // 2
+    x1 = platform_size // 2
+    x2 = x1 + gap_size
+    y1 = platform_size // 2
+    y2 = y1 + gap_size
+   
+    x3 = x2 + int(0.4/terrain.horizontal_scale) + 1
+    x4 = x3 + gap_size
+
+    y3 = y2 + (0.4/terrain.horizontal_scale) +1
+    y4 = y3 + gap_size
+
+    terrain.height_field_raw[center_x-x4 : center_x + x4, center_y-y4 : center_y + y4] = -1000
+    terrain.height_field_raw[center_x-x3 : center_x + x3, center_y-y3 : center_y + y3] = 0
+
+    terrain.height_field_raw[center_x-x2 : center_x + x2, center_y-y2 : center_y + y2] = -1000
+    terrain.height_field_raw[center_x-x1 : center_x + x1, center_y-y1 : center_y + y1] = 0

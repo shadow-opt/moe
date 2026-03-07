@@ -21,6 +21,13 @@
 
 Follow the step-by-step setup guide in [setup.md](doc/setup_en.md).
 
+## 📚 Learning and customization
+
+If you want a deeper walkthrough of the framework internals and a Chinese migration guide focused on adapting other quadrupeds for training, Sim2Sim, and deployment, see:
+
+- [Learning and secondary development manual](doc/learning_zh.md)
+- [New robot migration guide (Chinese)](doc/new_robot_zh.md)
+
 ## 🛠️ Usage Guide
 
 ### 1. Train
