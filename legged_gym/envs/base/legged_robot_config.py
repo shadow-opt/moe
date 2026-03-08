@@ -1,8 +1,31 @@
 import math
 from .base_config import BaseConfig
 
+"""LeggedRobot 通用配置基类。
+
+本文件的阅读方式建议是：
+1. 先看 `LeggedRobotCfg`，理解环境在 reset / step / reward / observation 阶段会读取哪些字段；
+2. 再看 `LeggedRobotCfgPPO` / `LeggedRobotCfgCTS` 等训练配置，理解“环境参数”和“算法参数”是如何分离的；
+3. 最后回到具体机器人配置（例如 Go2），只关注它覆写了哪些默认值。
+
+注意：这些类虽然写成嵌套 class，但在运行时会被 `BaseConfig` 递归实例化，
+因此使用方式更像 `cfg.env.num_envs` 这样的配置对象，而不是纯静态类常量。
+"""
+
 class LeggedRobotCfg(BaseConfig):
+    """通用四足机器人环境配置 schema。
+
+    这个类定义的是“环境会用到哪些配置字段”，不是某一台具体机器人的最终参数。
+    具体任务通常会继承它，并只覆写和自身相关的子配置。
+    """
+
     class env:
+        """环境级参数。
+
+        这里的字段通常会在 `BaseTask`/`LeggedRobot` 初始化时直接决定 buffer 形状、
+        episode 长度，以及 rollout 过程中返回给算法的 observation 维度。
+        """
+
         num_envs = 4096
         num_observations = 48
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
@@ -13,6 +36,14 @@ class LeggedRobotCfg(BaseConfig):
         test = False
 
     class terrain:
+        """地形配置。
+
+        这部分会被 `Terrain` 和 `LeggedRobot.create_sim()` 共同消费：
+        - `mesh_type` 决定是否创建 plane / heightfield / trimesh；
+        - `terrain_proportions` 决定 rough terrain 中各列地形的比例；
+        - `measure_heights` 与采样点列表会影响观测中的地形高度输入。
+        """
+
         mesh_type = 'trimesh' # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
@@ -41,6 +72,12 @@ class LeggedRobotCfg(BaseConfig):
         move_down_by_accumulated_xy_command = False # move down the terrain curriculum based on accumulated xy command distance instead of absolute distance
 
     class commands:
+        """高层速度/朝向指令配置。
+
+        `LeggedRobot._resample_commands()` 会大量读取这里的字段。
+        从学习角度，可以把它理解成“策略被要求完成什么任务、任务难度如何随训练变化”。
+        """
+
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
@@ -67,6 +104,9 @@ class LeggedRobotCfg(BaseConfig):
             "backflip": 5.0,
             "sideflip": 3.0,
         }
+        # 这里的顺序必须与 terrain 生成逻辑保持一致。
+        # 每种 terrain 都可以再施加一层 command range 上限，
+        # 用于实现“同一训练批次里，不同地形收到不同难度命令”。
         # [wave, slope, rough slope, stairs up, stairs down, obstacles, stepping stones, gap, flat]
         terrain_max_command_ranges = [
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.5, 1.5], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
@@ -81,12 +121,26 @@ class LeggedRobotCfg(BaseConfig):
         ]
 
         class ranges:
+            """当前全局 command range。
+
+            它是 command 采样的第一层范围，后续还可能被：
+            1. `command_range_curriculum` 按训练迭代更新；
+            2. `terrain_max_command_ranges` 按地形再次裁剪。
+            """
+
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
             lin_vel_y = [-0.5, 0.5]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
     class init_state:
+        """reset 时机器人的初始状态。
+
+        其中最重要的是 `default_joint_angles`：
+        - 在 position control 下，policy 输出为 0 时，目标角度就是这些默认角；
+        - 它同时定义了“默认站姿”，很多奖励也会围绕它来设计。
+        """
+
         pos = [0.0, 0.0, 1.] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
         lin_vel = [0.0, 0.0, 0.0]  # x,y,z [m/s]
@@ -102,6 +156,17 @@ class LeggedRobotCfg(BaseConfig):
         }
 
     class control:
+        """底层控制器配置。
+
+        `LeggedRobot._compute_torques()` 会把 policy action 解释为：
+        - P: 位置目标偏移
+        - V: 速度目标
+        - T: 直接输出力矩
+
+        因此这里的 `action_scale`、`stiffness`、`damping` 和 `decimation`
+        会直接决定动作的物理含义与控制频率。
+        """
+
         control_type = 'P' # P: position, V: velocity, T: torques
         # PD Drive parameters:
         stiffness = {'joint_a': 10.0, 'joint_b': 15.}  # [N*m/rad]
@@ -112,6 +177,8 @@ class LeggedRobotCfg(BaseConfig):
         decimation = 4
 
     class asset:
+        """URDF/MJCF 资产与碰撞相关配置。"""
+
         file = ""
         name = "legged_robot"  # actor name
         foot_name = "None" # name of the feet bodies, used to index body state and contact force tensors
@@ -134,6 +201,14 @@ class LeggedRobotCfg(BaseConfig):
         thickness = 0.01
 
     class domain_rand:
+        """Domain Randomization 配置。
+
+        可以按生效时机分三类理解：
+        1. Robot properties：在 actor 创建时或属性更新时改物理参数；
+        2. Environment reset：每次 reset 时重采样电机、PD、零偏；
+        3. Environment step：在 rollout 中持续施加扰动，例如 push / action delay。
+        """
+
         ### Robot properties ###
         robot_properties_update = None
         # eg: {'start_iter': 5000, 'interval': 5000}
@@ -173,6 +248,13 @@ class LeggedRobotCfg(BaseConfig):
         randomize_action_delay = False # use last_action with 0~20 ms delay, 4 decimation
 
     class rewards:
+        """奖励配置。
+
+        关键约定：`scales` 中的键名会自动映射到环境类里的 `_reward_<name>()`。
+        例如 `tracking_lin_vel` -> `_reward_tracking_lin_vel()`。
+        因此新增奖励通常要同时改“配置”和“环境实现”两处。
+        """
+
         class scales:
             termination = -0.0
             tracking_lin_vel = 1.0
@@ -213,6 +295,12 @@ class LeggedRobotCfg(BaseConfig):
         min_legs_distance = 0.1  # min distance between legs to not be considered stumbling
 
     class normalization:
+        """观测/动作归一化配置。
+
+        这些 scale 不改变物理量本身，只改变喂给 policy 的数值尺度，
+        目的是让不同模态的输入落到更适合神经网络学习的范围。
+        """
+
         class obs_scales:
             lin_vel = 2.0
             ang_vel = 0.25
@@ -223,6 +311,8 @@ class LeggedRobotCfg(BaseConfig):
         clip_actions = 100.
 
     class noise:
+        """观测噪声配置。"""
+
         add_noise = True
         noise_level = 1.0 # scales other values
         class noise_scales:
@@ -240,6 +330,8 @@ class LeggedRobotCfg(BaseConfig):
         lookat = [11., 5, 3.]  # [m]
 
     class sim:
+        """底层物理仿真配置。"""
+
         dt =  0.005
         substeps = 1
         gravity = [0., 0. ,-9.81]  # [m/s^2]
@@ -259,9 +351,18 @@ class LeggedRobotCfg(BaseConfig):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
 class LeggedRobotCfgPPO(BaseConfig):
+    """标准 PPO 训练配置。
+
+    这部分不描述机器人本身，而描述 rollout 长度、网络结构、优化超参数等。
+    对二次开发来说，应当把它和 `LeggedRobotCfg` 分开理解：
+    前者决定“环境长什么样”，后者决定“算法怎么学”。
+    """
+
     seed = 1
     runner_class_name = 'OnPolicyRunner'
     class policy:
+        """Actor / Critic 网络结构。"""
+
         init_noise_std = 1.0
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
@@ -272,6 +373,8 @@ class LeggedRobotCfgPPO(BaseConfig):
         # rnn_num_layers = 1
         
     class algorithm:
+        """PPO 优化超参数。"""
+
         # training params
         value_loss_coef = 1.0
         use_clipped_value_loss = True
@@ -287,6 +390,8 @@ class LeggedRobotCfgPPO(BaseConfig):
         max_grad_norm = 1.
 
     class runner:
+        """训练循环与 checkpoint 管理配置。"""
+
         policy_class_name = 'ActorCritic'
         algorithm_class_name = 'PPO'
         num_steps_per_env = 24 # per iteration
@@ -307,10 +412,18 @@ class LeggedRobotCfgPPO(BaseConfig):
         port = 9973
 
 class LeggedRobotCfgCTS(BaseConfig):
+    """CTS 系列训练配置基类。
+
+    相比纯 PPO，它显式区分 teacher / student 表征学习，
+    因此会多出 latent、encoder、teacher_env_ratio 等参数。
+    """
+
     seed = 0
     runner_class_name = "OnPolicyRunnerCTS"
     history_length = 5
     class policy:
+        """CTS policy 结构，包含 teacher/student encoder。"""
+
         init_noise_std = 1.0
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
@@ -321,6 +434,8 @@ class LeggedRobotCfgCTS(BaseConfig):
         norm_type = 'l2norm' # normalization type for encoders: l2norm, simnorm
     
     class algorithm:
+        """CTS 优化超参数。"""
+
         # training params
         value_loss_coef = 1.0
         use_clipped_value_loss = True
@@ -339,6 +454,8 @@ class LeggedRobotCfgCTS(BaseConfig):
         # teacher_env_ratio = 1.00  # percentage of envs assigned to teacher
 
     class runner:
+        """CTS 训练主循环配置。"""
+
         policy_class_name = 'ActorCriticCTS'
         algorithm_class_name = 'CTS'
         num_steps_per_env = 24 # per iteration
@@ -359,6 +476,8 @@ class LeggedRobotCfgCTS(BaseConfig):
         port = 9973
 
 class LeggedRobotCfgMoENGCTS(LeggedRobotCfgCTS):
+    """MoE + no-goal mask 版本的 CTS 配置。"""
+
     class policy(LeggedRobotCfgCTS.policy):
         obs_no_goal_mask = None # mask for observation without goal inputs
         student_expert_num = 8 # number of experts in the student model
@@ -371,6 +490,8 @@ class LeggedRobotCfgMoENGCTS(LeggedRobotCfgCTS):
         algorithm_class_name = 'MoENGCTS'
 
 class LeggedRobotCfgMCPCTS(LeggedRobotCfgCTS):
+    """MCPCTS 配置。"""
+
     class policy(LeggedRobotCfgCTS.policy):
         obs_no_goal_mask = None # mask for observation without goal inputs
         student_expert_num = 8 # number of experts in the student model
@@ -380,6 +501,8 @@ class LeggedRobotCfgMCPCTS(LeggedRobotCfgCTS):
         algorithm_class_name = 'MCPCTS'
 
 class LeggedRobotCfgACMoECTS(LeggedRobotCfgCTS):
+    """Actor-Critic 双路都用 MoE 的 CTS 配置。"""
+
     class policy(LeggedRobotCfgCTS.policy):
         expert_num = 8 # number of experts in the student model
 
@@ -388,6 +511,8 @@ class LeggedRobotCfgACMoECTS(LeggedRobotCfgCTS):
         algorithm_class_name = 'ACMoECTS'
 
 class LeggedRobotCfgDualMoECTS(LeggedRobotCfgCTS):
+    """Dual MoE CTS 配置。"""
+
     class policy(LeggedRobotCfgCTS.policy):
         expert_num = 8 # number of experts in the student model
         student_encoder_hidden_dims = [512, 256, 256]
@@ -397,6 +522,8 @@ class LeggedRobotCfgDualMoECTS(LeggedRobotCfgCTS):
         algorithm_class_name = 'DualMoECTS'
 
 class LeggedRobotCfgMoECTS(LeggedRobotCfgCTS):
+    """通用 MoE CTS 配置。"""
+
     class policy(LeggedRobotCfgCTS.policy):
         expert_num = 8 # number of experts in the student model
         student_encoder_hidden_dims = [512, 256, 256]

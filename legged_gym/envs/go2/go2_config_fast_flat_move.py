@@ -11,6 +11,14 @@ Change command_range_curriculum, init command range
 import math
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, LeggedRobotCfgCTS, LeggedRobotCfgMoENGCTS, LeggedRobotCfgMoENGCTS, LeggedRobotCfgMCPCTS, LeggedRobotCfgACMoECTS, LeggedRobotCfgDualMoECTS, LeggedRobotCfgMoECTS
 
+"""Go2 平地高速直行专项配置。
+
+它不是通用 rough terrain 主线，而是为了“平地上跑得更快、更稳”而做的专项实验：
+- `mesh_type='plane'`，直接移除复杂地形；
+- command curriculum 会持续拉大 `lin_vel_x` 上界；
+- 奖励会更强调速度跟踪和直行时的髋关节规整性。
+"""
+
 class GO2Cfg(LeggedRobotCfg):
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
@@ -95,6 +103,8 @@ class GO2Cfg(LeggedRobotCfg):
         decimation = 4
     
     class terrain(LeggedRobotCfg.terrain):
+        """直接切到平地，目标从地形泛化转成高速移动专项训练。"""
+
         mesh_type = 'plane'
         max_init_terrain_level = 5
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stepping_stones, gap, flat]
@@ -107,6 +117,8 @@ class GO2Cfg(LeggedRobotCfg):
         move_down_by_accumulated_xy_command = True # move down the terrain curriculum based on accumulated xy command distance instead of absolute distance
         
     class commands(LeggedRobotCfg.commands):
+        """高速直行任务的命令采样策略。"""
+
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw (in heading mode ang_vel_yaw is recomputed from heading error)
@@ -117,9 +129,14 @@ class GO2Cfg(LeggedRobotCfg):
         limit_ang_vel_at_zero_command_prob = 0.2 # probability of add limiting angular velocity commands when zero command is sampled
         limit_vel_prob = 0.2 # probability of limiting linear velocity command
         limit_vel_invert_when_continuous = True # invert the limit logic when using continuous sample limit velocity commands
+        # 这里把 `lin_vel_y` 的限制模板收成只允许 0，
+        # 目的是刻意压制横移，让策略把容量集中到前进速度与稳定性上。
         limit_vel = {"lin_vel_x": [-1, 1], "lin_vel_y": [0], "ang_vel_yaw": [-1, 0, 1]} # sample vel commands from min [-1] or zero [0] or max [1] range only
         stop_heading_at_limit = True # stop heading updates when vel is limited
         dynamic_resample_commands = True # sample commands with low bounds
+        # 这组 curriculum 是本文件最核心的差异：
+        # 它会逐步拉高 x 方向速度上界，同时在后期收紧 y / yaw，
+        # 把任务塑造成“更快、更直、更少横摆”。
         command_range_curriculum = [ { # list for command range curriculums at specific training iterations
             'iter': 5000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
@@ -170,6 +187,7 @@ class GO2Cfg(LeggedRobotCfg):
         ]
 
         class ranges:
+            # 训练一开始先给保守范围，避免策略在尚未学会稳定步态前就被迫高速奔跑。
             lin_vel_x = [-1.0, 1.0] # min max [m/s]
             lin_vel_y = [-1.0, 1.0] # min max [m/s]
             ang_vel_yaw = [-1.0, 1.0]   # min max [rad/s]
@@ -184,7 +202,10 @@ class GO2Cfg(LeggedRobotCfg):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
   
     class rewards(LeggedRobotCfg.rewards):
+        """平地高速任务的奖励设计。"""
+
         soft_dof_pos_limit = 0.9
+        # 降低 base height target，通常是在高速前冲时允许更低、更贴地的姿态。
         base_height_target = 0.33
         only_positive_rewards = False
         max_contact_force = 147. # forces above this value are penalized, go2 weight 15kg
@@ -206,6 +227,7 @@ class GO2Cfg(LeggedRobotCfg):
         }
         min_legs_distance = 0.1  # min distance between legs to not be considered stumbling
         class scales:
+            # 明显提高速度跟踪权重，让策略优先追求跑得快。
             tracking_lin_vel = 2.0  # Increase for faster running
             tracking_ang_vel = 0.5
             lin_vel_z = -2.0
@@ -225,6 +247,7 @@ class GO2Cfg(LeggedRobotCfg):
             # legs_distance = -1.5  # not good performance, avoid leg collision
             # similar_to_default = -0.01
             # feet_contact_forces = -1.0  # try to add but no effect, remove
+            # 当主要任务是 x 向前进时，进一步约束髋关节左右对称，帮助形成更规整的高速步态。
             x_command_hip_regular = -0.5  # when x command exists, encourage symmetrical hip positions
 
         turn_over_roll_threshold = math.pi / 4 # threshold on roll to use turn over rewards
@@ -239,6 +262,8 @@ class GO2Cfg(LeggedRobotCfg):
         add_noise = True
 
 class GO2CfgPPO(LeggedRobotCfgPPO):
+    """沿用主线 Go2 的 PPO 训练头，仅替换环境配置。"""
+
     class algorithm(LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
     class runner(LeggedRobotCfgPPO.runner):
@@ -248,6 +273,8 @@ class GO2CfgPPO(LeggedRobotCfgPPO):
         save_interval = 500
 
 class GO2CfgCTS(LeggedRobotCfgCTS):
+    """沿用主线 Go2 的 CTS 训练头，仅替换环境配置。"""
+
     class runner(LeggedRobotCfgCTS.runner):
         num_steps_per_env = 24
         run_name = ''

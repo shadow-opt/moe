@@ -13,6 +13,16 @@ close move_down_by_accumulated_xy_command, dynamic_resample_commands, zero_comma
 import math
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, LeggedRobotCfgCTS, LeggedRobotCfgMoENGCTS, LeggedRobotCfgMoENGCTS, LeggedRobotCfgMCPCTS, LeggedRobotCfgACMoECTS, LeggedRobotCfgDualMoECTS, LeggedRobotCfgMoECTS
 
+"""Go2 vanilla 对照配置。
+
+这个文件更适合当“主线配置的消融/对照版本”来读：
+- 更长的 command 保持时间；
+- 开启 `heading_command`；
+- 关闭 dynamic command / zero-command curriculum / command range curriculum / dynamic sigma。
+
+因此它更接近传统 locomotion 训练设置，而不是主线文件那种更强的课程式采样。
+"""
+
 class GO2Cfg(LeggedRobotCfg):
     class init_state(LeggedRobotCfg.init_state):
         pos = [0.0, 0.0, 0.42] # x,y,z [m]
@@ -97,6 +107,8 @@ class GO2Cfg(LeggedRobotCfg):
         decimation = 4
     
     class terrain(LeggedRobotCfg.terrain):
+        """地形设置基本延续主线，但关闭了按累计 command 距离降难度。"""
+
         max_init_terrain_level = 5
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stepping_stones, gap, flat]
         # terrain_proportions = [0.2, 0.05, 0.05, 0.30, 0.05, 0.25, 0.0, 0.0, 0.1]  # 更偏向wave
@@ -108,6 +120,14 @@ class GO2Cfg(LeggedRobotCfg):
         move_down_by_accumulated_xy_command = False # move down the terrain curriculum based on accumulated xy command distance instead of absolute distance
         
     class commands(LeggedRobotCfg.commands):
+        """vanilla 命令配置。
+
+        与主线相比，这里更“朴素”：
+        - `resampling_time=10`：命令更稳定、更少切换；
+        - `heading_command=True`：通过 heading error 反推 yaw velocity；
+        - 关闭各种 curriculum / special command trick。
+        """
+
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw (in heading mode ang_vel_yaw is recomputed from heading error)
@@ -122,6 +142,8 @@ class GO2Cfg(LeggedRobotCfg):
         limit_vel = {"lin_vel_x": [-1, 1], "lin_vel_y": [-1, 1], "ang_vel_yaw": [-1, 0, 1]} # sample vel commands from min [-1] or zero [0] or max [1] range only
         stop_heading_at_limit = True # stop heading updates when vel is limited
         dynamic_resample_commands = False # sample commands with low bounds
+        # 不做 command_range_curriculum，意味着训练从一开始就面对较大的命令范围，
+        # 更像固定任务难度，而不是循序渐进扩难度。
         command_range_curriculum = []
         # command_range_curriculum = [{ # list for command range curriculums at specific training iterations
         #     'iter': 20000, # training iteration at which the command ranges are updated
@@ -154,6 +176,8 @@ class GO2Cfg(LeggedRobotCfg):
         ]
 
         class ranges:
+            # 与主线相比，初始命令范围明显更大，
+            # 这也是它更像“直接进入完整 locomotion 任务”的原因之一。
             lin_vel_x = [-2.0, 2.0] # min max [m/s]
             lin_vel_y = [-1.0, 1.0] # min max [m/s]
             ang_vel_yaw = [-2.0, 2.0]   # min max [rad/s]
@@ -168,6 +192,8 @@ class GO2Cfg(LeggedRobotCfg):
         self_collisions = 1 # 1 to disable, 0 to enable...bitwise filter
   
     class rewards(LeggedRobotCfg.rewards):
+        """奖励大体沿用主线，但关闭 dynamic sigma，tracking 容忍度固定。"""
+
         soft_dof_pos_limit = 0.9
         base_height_target = 0.38
         only_positive_rewards = False
@@ -179,6 +205,7 @@ class GO2Cfg(LeggedRobotCfg):
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
+        # 关闭 dynamic_sigma 后，不再根据命令速度和 terrain 难度动态放宽 tracking reward。
         dynamic_sigma = None
         # dynamic_sigma = { # linear interpolation of sigma based on command velocity, **Must start terrain curriculum first**
         #     "min_lin_vel": 0.5, # min abs linear velocity to have default sigma
@@ -223,6 +250,8 @@ class GO2Cfg(LeggedRobotCfg):
         add_noise = True
 
 class GO2CfgPPO(LeggedRobotCfgPPO):
+    """沿用主线 Go2 的 PPO 训练头，仅替换环境配置。"""
+
     class algorithm(LeggedRobotCfgPPO.algorithm):
         entropy_coef = 0.01
     class runner(LeggedRobotCfgPPO.runner):
@@ -232,6 +261,8 @@ class GO2CfgPPO(LeggedRobotCfgPPO):
         save_interval = 500
 
 class GO2CfgCTS(LeggedRobotCfgCTS):
+    """沿用主线 Go2 的 CTS 训练头，仅替换环境配置。"""
+
     class runner(LeggedRobotCfgCTS.runner):
         num_steps_per_env = 24
         run_name = ''
