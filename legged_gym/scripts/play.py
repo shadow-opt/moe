@@ -12,9 +12,18 @@ from legged_gym.utils.exporter import export_policy_as_jit, export_policy_as_onn
 import numpy as np
 import torch
 
+"""推理/回放入口脚本。
+
+它和 `train.py` 的最大区别是：
+1. 通常会关闭大部分随机化与噪声，方便稳定观察策略；
+2. 可以直接覆写 `env.commands`，手工指定想测试的命令。
+
+因此当后续扩展“更多命令”时，这个文件往往是最容易漏改的测试入口之一。
+"""
+
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
-    # override some parameters for testing
+    # 这里把训练态环境改造成“更可视化、可复现”的测试态环境。
     env_cfg.env.num_envs = min(env_cfg.env.num_envs, 100)
     # env_cfg.terrain.mesh_type = 'plane'
     env_cfg.terrain.num_rows = 7
@@ -31,10 +40,10 @@ def play(args):
 
     env_cfg.env.test = True
 
-    # prepare environment
+    # 创建环境后，`obs = env.get_observations()` 会拿到 reset 后的首帧观测。
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
     obs = env.get_observations()
-    # load policy
+    # 推理时通常直接恢复最新训练好的模型。
     train_cfg.runner.resume = True
     runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args, train_cfg=train_cfg)
     policy = runner.get_inference_policy(device=env.device)
@@ -55,6 +64,10 @@ def play(args):
         actions = policy(obs.detach())
 
         if FIX_COMMAND:
+            # 这里直接把每个 env 的命令固定成“向前走”。
+            # 注意：当前只覆写了前 3 维（x / y / yaw）。
+            # 如果以后把高度、跳跃等新命令显式加入 `env.commands` 并送入 observation，
+            # 这里也必须同步补上对应维度，否则测试时看到的行为会和训练设想不一致。
             env.commands[:, 0] = 1.0
             env.commands[:, 1] = 0.0
             env.commands[:, 2] = 0.0

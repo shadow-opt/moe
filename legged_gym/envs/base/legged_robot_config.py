@@ -29,6 +29,9 @@ class LeggedRobotCfg(BaseConfig):
         num_envs = 4096
         num_observations = 48
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
+        # `num_observations` / `num_privileged_obs` 并不只是“文档数字”，
+        # 它们会直接决定 `BaseTask` 分配多大的 `obs_buf` / `privileged_obs_buf`。
+        # 因此一旦 `compute_observations()` 改了拼接布局，这里必须同步更新。
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
@@ -81,6 +84,9 @@ class LeggedRobotCfg(BaseConfig):
         curriculum = False
         max_curriculum = 1.
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
+        # `num_commands` 决定的是内部 `self.commands` buffer 的容量，
+        # 不等于 actor/critic 一定会显式看到同样多的命令维度。
+        # 在本仓库里，“命令内部维度”和“送进 observation 的命令维度”经常不是一回事。
         resampling_time = 10. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
         zero_command_curriculum = None

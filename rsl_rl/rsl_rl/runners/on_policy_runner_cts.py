@@ -96,6 +96,11 @@ class OnPolicyRunnerCTS:
 
         # init history
         self.history = torch.zeros((self.env.num_envs, history_length, self.env.num_obs), device=self.device)
+        # `self.history` 是 runner 侧在线维护的历史窗口，shape = [N, H, obs_dim]。
+        # 它和 storage 里的 `history` 不同：
+        # - runner 里的 `history` 表示“此刻每个 env 的最新滑动窗口”
+        # - storage 里的 `history` 表示“过去 rollout 中每一个时间步对应的历史快照”
+        # 两者一个偏在线状态，一个偏离线训练样本。
 
         # Log
         self.log_dir = log_dir
@@ -131,6 +136,8 @@ class OnPolicyRunnerCTS:
         assert privileged_obs is not None
         obs, privileged_obs = obs.to(self.device), privileged_obs.to(self.device)
         self.history = torch.cat([self.history[:, 1:], obs.unsqueeze(1)], dim=1)
+        # 这里先把 reset 后的第一帧 obs 压进 history，
+        # 这样 student encoder 从训练一开始就拿到长度正确的窗口，而不是全零空壳。
         self.alg.model.train() # switch to train mode (for dropout for example)
 
         ep_infos = []
@@ -153,6 +160,8 @@ class OnPolicyRunnerCTS:
                     obs, privileged_obs, rewards, dones, infos = self.env.step(actions)
                     obs, privileged_obs, rewards, dones = obs.to(self.device), privileged_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
                     self.history[dones > 0] = 0.0
+                    # 某个 env done 后，必须先把它的 history 清零，再拼接新 obs；
+                    # 否则新 episode 的前几帧会错误继承上一局结尾的时序信息。
                     self.history = torch.cat([self.history[:, 1:], obs.unsqueeze(1)], dim=1)
                     self.alg.process_env_step(rewards, dones, infos)
                     

@@ -60,6 +60,8 @@ class GO2Cfg(LeggedRobotCfg):
 
         num_envs = 8192
         # 对应 `Go2Robot.compute_observations()` 中 actor obs 的拼接结果。
+        # 目前 45 维的组成是：3(base_ang_vel) + 3(projected_gravity) + 3(commands) + 12(dof_pos) + 12(dof_vel) + 12(actions)。
+        # 如果以后把“高度命令”“跳跃命令”等显式拼进 actor obs，这里必须同步增加。
         num_observations = 45
         # privileged obs = actor obs(45)
         #                + base_lin_vel(3)
@@ -68,6 +70,8 @@ class GO2Cfg(LeggedRobotCfg):
         #                + dof accelerations(12)
         #                + terrain heights(187)
         num_privileged_obs = 45 + 3 + 4 + 12 + 12 + 187  # 263
+        # 新手调维度时，最稳妥的做法永远是“先改环境拼接，再回头改这里”，
+        # 而不是只在配置里拍脑袋改一个数字。
         # num_privileged_obs = 45 + 3 + 187  # 235
         # num_privileged_obs = 48  # without height measurements
         episode_length_s = 25
@@ -159,7 +163,16 @@ class GO2Cfg(LeggedRobotCfg):
 
         curriculum = False
         max_curriculum = 1.
+        # 命令张量 `self.commands` 的内部容量。
+        # 当前语义约定为：[lin_vel_x, lin_vel_y, ang_vel_yaw, heading]。
+        # 但要特别注意：当前 actor observation 实际只显式使用前 3 维。
+        # 第 4 维 `heading` 只有在 `heading_command=True` 时才作为内部目标使用。
+        # 如果未来要新增“高度”“跳跃强度”等命令，常见做法是：
+        # 1. 先在这里增加 `num_commands`；
+        # 2. 再同步修改 command 采样、command scale、obs 拼接、奖励、导出部署链路。
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw (in heading mode ang_vel_yaw is recomputed from heading error)
+        # `num_commands=4` 的真正含义是：环境内部始终为 heading 预留了第 4 个槽位；
+        # 但当前主线 actor obs 只吃前 3 维，所以别把“内部有 4 维”误读成“策略已经看到了 4 维”。
         resampling_time = 5. # time before command are changed[s]
         heading_command = False # if true: compute ang vel command from heading error
         # 训练早期先减少“停住不动”的任务，后期逐步增加 zero-command 比例，
@@ -210,6 +223,7 @@ class GO2Cfg(LeggedRobotCfg):
             """初始命令范围。
 
             注意这只是训练起点，后续会被 `command_range_curriculum` 扩到更大范围。
+            新增命令时，也通常要在这里补上对应的取值范围，否则 `_parse_cfg()` / `_update_env_command_ranges()` 无法统一处理。
             """
 
             lin_vel_x = [-0.5, 0.5] # min max [m/s]
@@ -328,6 +342,8 @@ class GO2CfgMoENGCTS(LeggedRobotCfgMoENGCTS):
     """Go2 + MoE No-Goal CTS 配置。"""
 
     class policy(LeggedRobotCfgMoENGCTS.policy):
+        # 这里默认假设 command 只占 actor obs 中的 3 维槽位。
+        # 如果未来扩展显式命令维度，相关 mask 也必须同步修改，否则 MoE/goal-mask 会错位。
         obs_no_goal_mask = [True] * 6 + [False] * 3 + [True] * 36  # mask for obs without command info
         student_expert_num = 8 # number of experts in the student model
     

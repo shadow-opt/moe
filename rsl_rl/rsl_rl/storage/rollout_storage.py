@@ -36,6 +36,9 @@ from rsl_rl.utils import split_and_pad_trajectories
 class RolloutStorage:
     class Transition:
         def __init__(self):
+            # `Transition` 是“单个时间步、整批 env”的暂存容器。
+            # 环境 step 一次后，runner 会把当前 step 的 obs/action/reward 等先塞进这里，
+            # 再由 `add_transitions()` 复制进真正的 rollout buffer。
             self.observations = None
             self.critic_observations = None
             self.actions = None
@@ -59,6 +62,13 @@ class RolloutStorage:
         self.actions_shape = actions_shape
 
         # Core
+        # 下面这些张量都是“算法侧 rollout buffer”，不要和环境内部的运行时 buffer 混淆。
+        # 区别可以简单记成：
+        # - 环境 buffer：描述“机器人此刻在 simulator 里是什么状态”
+        # - rollout buffer：描述“这段时间里算法看到了什么、做了什么、将来如何回放训练”
+        # 其统一 shape 通常是 [T, N, ...]：
+        # - T = num_transitions_per_env，单次 rollout 的时间长度
+        # - N = num_envs，并行环境数量
         self.observations = torch.zeros(num_transitions_per_env, num_envs, *obs_shape, device=self.device)
         if privileged_obs_shape[0] is not None:
             self.privileged_observations = torch.zeros(num_transitions_per_env, num_envs, *privileged_obs_shape, device=self.device)
@@ -69,6 +79,11 @@ class RolloutStorage:
         self.dones = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device).byte()
 
         # For PPO
+        # 这一组是 PPO/actor-critic 更新阶段才真正需要的统计量：
+        # - `values`: critic 对当前状态的价值估计
+        # - `returns`: bootstrapping 后的目标回报
+        # - `advantages`: PPO surrogate loss 的核心训练信号
+        # - `mu` / `sigma`: 旧策略动作分布参数，用于 importance sampling 比率与 KL/熵相关计算
         self.actions_log_prob = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.values = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
         self.returns = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
@@ -88,6 +103,8 @@ class RolloutStorage:
     def add_transitions(self, transition: Transition):
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
+        # 注意这里是 copy_，不是引用。
+        # 这意味着 env 下一步继续运行时，即使原始 tensor 变化，rollout 里已经采集好的样本仍保持不变。
         self.observations[self.step].copy_(transition.observations)
         if self.privileged_observations is not None: self.privileged_observations[self.step].copy_(transition.critic_observations)
         self.actions[self.step].copy_(transition.actions)
@@ -121,6 +138,12 @@ class RolloutStorage:
         self.step = 0
 
     def compute_returns(self, last_values, gamma, lam):
+        # 使用 GAE(lambda) 从后往前回填 `returns` 与 `advantages`。
+        # 新手最容易混淆：
+        # - `rewards` 是环境即时奖励
+        # - `values` 是 critic 预测
+        # - `returns` 是训练 critic 的目标
+        # - `advantages` 是训练 actor 的相对优劣信号
         advantage = 0
         for step in reversed(range(self.num_transitions_per_env)):
             if step == self.num_transitions_per_env - 1:
@@ -145,6 +168,9 @@ class RolloutStorage:
         return trajectory_lengths.float().mean(), self.rewards.mean()
 
     def mini_batch_generator(self, num_mini_batches, num_epochs=8):
+        # 这里把 [T, N, ...] 展平成 [T*N, ...] 再随机打散，
+        # 因此普通 MLP PPO 默认不保留时间顺序；
+        # 如果模型需要时间结构（RNN），则应走下面的 recurrent generator。
         batch_size = self.num_envs * self.num_transitions_per_env
         mini_batch_size = batch_size // num_mini_batches
         indices = torch.randperm(num_mini_batches*mini_batch_size, requires_grad=False, device=self.device)

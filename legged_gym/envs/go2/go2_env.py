@@ -29,6 +29,9 @@ class Go2Robot(LeggedRobot):
 
         一旦 `compute_observations()` 改了拼接顺序，这里也必须一起改，
         否则噪声会落到错误的观测维度上。
+
+        对“扩展更多命令”尤其要小心：
+        如果新增命令显式进入 observation，除了改 obs 拼接外，这里的命令槽位长度也要同步考虑。
         """
 
         noise_vec = torch.zeros_like(self.obs_buf[0])
@@ -64,12 +67,22 @@ class Go2Robot(LeggedRobot):
         这里故意不把 `base_lin_vel` 放进 actor observation，
         但会把它放进 `privileged_obs_buf` 供 critic 使用，
         属于典型的 asymmetric training 设计。
+
+        对后续二次开发最关键的提醒：
+        当前 command 只取 `self.commands[:, :3]`，也就是策略显式看到的只有 `x/y/yaw`。
+        如果以后想让策略直接感知“高度命令/跳跃命令”，这里是第一批必须同步修改的地方。
         """
         # Actor observation：尽量只保留部署时也容易获得的本体状态。
         # 其中 `projected_gravity` 可以理解为“机身当前朝向相对重力方向的投影”，
         # 它比直接喂欧拉角更连续，也更适合神经网络学习姿态信息。
+        # 这里和基类最大的不同是：
+        # - actor 不再显式看到 `base_lin_vel`
+        # - critic 通过 `privileged_obs_buf` 才额外拿到更完整的真值信息
+        # 因此如果你在调试时发现“同名环境里 obs 维度和基类不一致”，往往就是从这里开始分叉的。
         self.obs_buf = torch.cat((self.base_ang_vel  * self.obs_scales.ang_vel,
                                   self.projected_gravity,
+                      # 这里切的是 `:3`，不是 `:self.cfg.commands.num_commands`。
+                      # 这是当前框架里“内部 command 维度”和“显式喂给 actor 的 command 维度”不完全一致的核心体现。
                                   self.commands[:, :3] * self.commands_scale,
                                   # 用相对默认站姿的关节偏移，而不是绝对关节角，
                                   # 能让网络更容易学到“偏离默认步态多少”。
@@ -89,10 +102,13 @@ class Go2Robot(LeggedRobot):
         # Privileged observation：在 actor obs 基础上补充 simulator 才容易拿到的信息，
         # 主要给 critic 或 teacher 使用，帮助训练更稳定。
         # 拼接顺序与 `GO2Cfg.env.num_privileged_obs` 强耦合。
+        # 可以把它理解成“训练时才开的上帝视角 buffer”：
+        # actor 不依赖它做部署，critic/teacher 则利用它让价值估计或蒸馏更准确。
         self.privileged_obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
                                     # 先放线速度，补上 actor 看不到但 critic 很有帮助的速度真值。
                                     self.base_ang_vel  * self.obs_scales.ang_vel,
                                     self.projected_gravity,
+                        # critic 当前也只显式接收 3 维 command。
                                     self.commands[:, :3] * self.commands_scale,
                                     (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
                                     self.dof_vel * self.obs_scales.dof_vel,

@@ -36,6 +36,8 @@ from rsl_rl.utils import split_and_pad_trajectories
 class RolloutStorageCTS:
     class Transition:
         def __init__(self):
+            # CTS 版本比普通 PPO 多了 `history`，
+            # 它表示“当前样本对应的历史观测窗口”，通常会送给 student encoder。
             self.observations = None
             self.critic_observations = None
             self.actions = None
@@ -63,6 +65,10 @@ class RolloutStorageCTS:
         self.history_length = history_length
 
         # Core
+        # 与普通 `RolloutStorage` 相比，这里多了 teacher/student 双路语义：
+        # - 前 `teacher_num_envs` 个 env 通常承担 privileged/teacher 路线
+        # - 剩余 env 承担 student 路线
+        # 但底层仍统一存到一组 [T, N, ...] 张量中，后续在 mini-batch 里再按 teacher/student 拆分重组。
         self.observations = torch.zeros(num_transitions_per_env, num_envs, *obs_shape, device=self.device)
         if privileged_obs_shape[0] is not None:
             self.privileged_observations = torch.zeros(num_transitions_per_env, num_envs, *privileged_obs_shape, device=self.device)
@@ -72,6 +78,9 @@ class RolloutStorageCTS:
         self.actions = torch.zeros(num_transitions_per_env, num_envs, *actions_shape, device=self.device)
         self.dones = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device).byte()
         self.history = torch.zeros(num_transitions_per_env, num_envs, self.history_length * obs_shape[0], device=self.device)
+        # `history`: 已经摊平成一维的历史观测窗口。
+        # 若原始 history 是 [N, H, obs_dim]，则这里存成 [T, N, H*obs_dim]，
+        # 方便直接喂给 student encoder / latent 模块。
 
         # For PPO
         self.actions_log_prob = torch.zeros(num_transitions_per_env, num_envs, 1, device=self.device)
@@ -93,6 +102,9 @@ class RolloutStorageCTS:
     def add_transitions(self, transition: Transition):
         if self.step >= self.num_transitions_per_env:
             raise AssertionError("Rollout buffer overflow")
+        # `history` 和 obs/action 一样，也是逐时间步快照。
+        # 因此当 episode 中途 done 后，runner 需要先把对应 env 的 history 清零，
+        # 再把新 episode 的起始窗口重新积累起来。
         self.observations[self.step].copy_(transition.observations)
         if self.privileged_observations is not None: self.privileged_observations[self.step].copy_(transition.critic_observations)
         self.actions[self.step].copy_(transition.actions)
@@ -151,6 +163,9 @@ class RolloutStorageCTS:
         return trajectory_lengths.float().mean(), self.rewards.mean()
 
     def mini_batch_generator(self, num_mini_batches, num_epochs=8):
+        # 这里不是简单地把全部样本一起随机打散，
+        # 而是分别为 teacher/student 采样，再拼回同一个 mini-batch。
+        # 这样可以在每个 batch 中维持两类样本都出现，避免训练阶段一边样本过多、另一边过少。
         teacher_samples_num = self.teacher_num_envs * self.num_transitions_per_env
         student_samples_num = self.student_num_envs * self.num_transitions_per_env
         teacher_mini_batch_size = teacher_samples_num // num_mini_batches

@@ -29,6 +29,12 @@ from legged_gym.utils.terrain import Terrain
 3. `_init_buffers()`：有哪些关键张量，它们各自代表什么；
 4. `_resample_commands()` / `_update_terrain_curriculum()`：任务难度如何变化；
 5. `_prepare_reward_function()` + `_reward_*()`：reward 如何由配置驱动。
+
+如果后续准备扩展“更多命令”（例如高度命令、跳跃命令），建议优先盯住以下位置：
+- `self.commands` / `self.commands_scale` 的初始化；
+- `_resample_commands()` 的采样与特殊模板逻辑；
+- `compute_observations()` / 子类 `compute_observations()` 的命令拼接；
+- `_reward_tracking_*()` 是否仍然覆盖所有需要跟踪的新目标。
 """
 
 class LeggedRobot(BaseTask):
@@ -47,6 +53,11 @@ class LeggedRobot(BaseTask):
         """
         # `cfg` 在这里还是一棵配置树；真正会被频繁使用的字段会在 `_parse_cfg()` 中
         # 被整理成 reward_scales / command_ranges / dt 等运行时成员。
+        # 对新手来说，可以把本类初始化分成 4 步：
+        # 1. `_parse_cfg()`：把配置树压平成 rollout 期间高频使用的运行时参数；
+        # 2. `BaseTask.__init__()`：创建通用 RL 接口 buffer 与 simulator；
+        # 3. `_init_buffers()`：把 simulator 状态包装成大量 torch buffer；
+        # 4. `_prepare_reward_function()`：根据配置把 reward 名绑定到 `_reward_*()` 实现。
         self.cfg = cfg
         self.sim_params = sim_params
         self.height_samples = None
@@ -60,7 +71,7 @@ class LeggedRobot(BaseTask):
         self._init_buffers()
         self._prepare_reward_function()
         self.init_done = True
-
+        # [NEW] reward curriculum
         self.reward_curriculum_scales = {}
         self.reward_curriculum_configs = []
         if hasattr(self.cfg.rewards, "curriculum_rewards") and self.cfg.rewards.curriculum_rewards is not None:
@@ -77,10 +88,16 @@ class LeggedRobot(BaseTask):
         """
         # 这里的一个 RL step，不等于一次 physics step。
         # `decimation` 表示 policy 每输出一次 action，底层物理会连续推进多次 sim step。
+        # 从 buffer 生命周期看，这个函数主要负责两件事：
+        # 1. 把当前 `actions` 写入动作相关 buffer；
+        # 2. 驱动 simulator 前进，等到 `post_physics_step()` 再统一刷新状态/奖励/观测。
+        # 因此在本函数内看到的 `dof_pos` / `base_lin_vel` 等，多数仍是“上一轮已同步”的缓存，
+        # 真正的最新物理状态要等 post-step 刷新后才可靠。
         clip_actions = self.cfg.normalization.clip_actions
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         # step physics and render each frame
         self.render()
+        # [new] action delay domain randomization
         if self.cfg.domain_rand.randomize_action_delay:
             # action delay 的实现方式：对每个 env 随机挑一个 decimation 起始点，
             # 在此之前继续沿用 last_actions，模拟控制链路延迟。
@@ -123,12 +140,20 @@ class LeggedRobot(BaseTask):
         """
         # 先把 simulator 里的最新状态同步回 torch tensor，
         # 后续所有 observation / reward / reset 判断都基于这些缓存张量。
+        # 如果把整个环境看成“状态机”，这里就是最核心的同步点：
+        # - simulator -> torch buffer
+        # - torch buffer -> reward / reset / obs
+        # 因而很多 buffer 名字虽然像“普通变量”，实际上都承担着状态缓存层的角色。
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)
+        # [new] 不太理解为什么额外刷新
         self.gym.refresh_rigid_body_state_tensor(self.sim)
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
+        # [new] commands 的重采样时机由一个计数器控制，而不是单纯的 episode 步数间隔，
+        # [new] 这样能更灵活地适配 dynamic resampling 和 curriculum 需求。
+        # [new] turn over 训练下，命令重采样会被强制推迟，直到翻身阶段结束，以免过早出现新命令导致训练信号混乱。
         self.commands_resampling_step -= 1
         if self.cfg.init_state.turn_over:
             self.turn_over_timer = (self.turn_over_timer - self.dt).clip(min=0.0)
@@ -145,6 +170,8 @@ class LeggedRobot(BaseTask):
         # terrain curriculum 会用它决定该 env 下次该升难度还是降难度。
         self.max_move_distance = self.max_move_distance.maximum(torch.norm(self.root_states[:, :2] - self.env_origins[:, :2], dim=1))
 
+        # `_post_physics_step_callback()` 是“状态更新”和“计算 obs/reward/reset”之间的桥梁：
+        # 常见的命令重采样、heading 转 yaw-rate、高度扫描，都在这里完成。
         self._post_physics_step_callback()
 
         # compute observations, rewards, resets, ...
@@ -152,7 +179,7 @@ class LeggedRobot(BaseTask):
         self.compute_reward()
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
-        
+        # [new] push
         if self.cfg.domain_rand.push_robots:
             self._push_robots()
 
@@ -161,7 +188,7 @@ class LeggedRobot(BaseTask):
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_root_vel[:] = self.root_states[:, 7:13]
-    
+    # [new] reward curriculum scale 的更新时机是每个训练迭代开始时（即每隔 num_steps_per_env 个 physics step）
     def update_reward_curriculum(self, force_update: bool = False):
         # update reward curriculum
         if self.reward_curriculum_configs:
@@ -220,6 +247,8 @@ class LeggedRobot(BaseTask):
         # 2. 再更新 terrain curriculum；
         # 3. 重置 root/dof 状态；
         # 4. 最后重采样 command 并统计 episode 信息。
+        # 这里清掉的 buffer 基本都带有“上一局记忆”属性；
+        # 如果漏清，最常见的问题是上一局的历史/统计泄漏到下一局，导致 reward 或 command curriculum 判断失真。
         ### Domain randomizations ###
         # randomization of the motor strength
         if self.cfg.domain_rand.randomize_motor_strength:
@@ -292,6 +321,8 @@ class LeggedRobot(BaseTask):
             Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
             adds each terms to the episode sums and to the total reward
         """
+        # `rew_buf` 是“本步总奖励”，每一帧都会整块重算，不会跨步累积。
+        # 跨 episode 的统计则写到 `episode_sums[name]`。
         self.rew_buf[:] = 0.
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
@@ -328,6 +359,12 @@ class LeggedRobot(BaseTask):
         """
         # 基类 observation 默认包含 base linear velocity，
         # 某些具体机器人（如 Go2）会覆写这个函数，改成更适合部署的观测布局。
+        # 这里同样只把前 3 维 command 显式送入 actor obs。
+        # 因此 `cfg.commands.num_commands` 变大，不代表 observation 会自动跟着变大。
+        # 新增命令若希望被策略直接感知，必须显式修改这里的拼接逻辑。
+        # 这里的拼接顺序就是 `obs_buf` 的语义定义。
+        # 训练器只看到一个扁平向量，但对开发者来说必须记住：
+        # 每一段槽位都来自某个具体 buffer，且改动顺序会连带影响噪声注入、模型输入维度、导出部署对齐。
         self.obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
                                     # 线速度通常是 locomotion tracking 的核心反馈之一。
                                     self.base_ang_vel  * self.obs_scales.ang_vel,
@@ -400,7 +437,8 @@ class LeggedRobot(BaseTask):
                 # 同一 env 里的所有 shape 共用一个 friction，
                 # 否则单个机器人不同 link 摩擦差异过大，可能偏离真实设定。
                 props[s].friction = self.friction_coeffs[env_id]
-        
+        # [new] restitution randomization : 虽然大多数 locomotion 任务对 restitution 不太敏感，
+        # 但在一些需要频繁跳跃/落地的任务里，过高的 restitution 可能导致训练不稳定，因此也加了随机化选项。
         if self.cfg.domain_rand.randomize_restitution:
             rand_restitution = np.random.uniform(self.cfg.domain_rand.restitution_range[0], self.cfg.domain_rand.restitution_range[1])
             for s in range(len(props)):
@@ -475,6 +513,8 @@ class LeggedRobot(BaseTask):
         # 这意味着 command 可以依赖刚走完这一小段 rollout 的最新状态。
         # env_ids = (self.episode_length_buf % int(self.cfg.commands.resampling_time / self.dt)==0).nonzero(as_tuple=False).flatten()
         resampling_env_ids = ((self.commands_resampling_step <= 0.0) * (self.episode_length_buf < self.max_episode_length - 1)).nonzero(as_tuple=False).flatten()
+        # 命令采样被放在这里，而不是 reset 内独占处理。
+        # 这样一个 episode 中可以发生多次 command 切换，形成速度跟踪任务。
         self._resample_commands(resampling_env_ids)
         if self.cfg.commands.heading_command:
             # heading mode 下，policy 不直接跟踪 yaw velocity command，
@@ -482,6 +522,8 @@ class LeggedRobot(BaseTask):
             mask = (self.stop_heading == 0.0)
             forward = quat_apply(self.base_quat[mask], self.forward_vec[mask])
             heading = torch.atan2(forward[:, 1], forward[:, 0])
+            # 第 4 维 `heading` 不会直接送给策略动作头，
+            # 而是在这里被转换成第 3 维 `ang_vel_yaw` 的期望值。
             self.commands[mask, 2] = torch.clip(
                 0.5*wrap_to_pi(self.commands[mask, 3] - heading),
                 self.env_command_ranges["ang_vel_yaw"][:, 0],
@@ -506,10 +548,14 @@ class LeggedRobot(BaseTask):
         # 2. 基于剩余时间/剩余距离的 command 采样；
         # 3. limit velocity / zero command 等特殊命令模板；
         # 4. turn-over 训练下的强制静止保护期。
+        # 如果未来加入“高度命令/跳跃命令”，通常也要在这个函数里决定：
+        # - 新命令是每次重采样都随机给，还是按特殊事件触发；
+        # - 新命令是否参与 zero/limit/dynamic-resample 等模板；
+        # - 新命令是否也要受 terrain range 裁剪。
         self.stop_heading[env_ids] = False
         # update command curriculum with train steps
         if len(self.cfg.commands.command_range_curriculum):
-            current_iter = self.common_step_counter // self.num_steps_per_env
+            current_iter = self.common_step_counter // self.num_steps_per_env 
             for i in range(len(self.cfg.commands.command_range_curriculum)-1, -1, -1):  # iterate backwards to be able to pop entries
                 cfg = self.cfg.commands.command_range_curriculum[i]
                 if current_iter >= cfg["iter"]:
@@ -523,6 +569,9 @@ class LeggedRobot(BaseTask):
                     self.cfg.commands.command_range_curriculum.pop(i)
                     self._update_env_command_ranges()
                     print(f"Command range updated at iter {current_iter}: {self.command_ranges}")
+        # `remaining_dist` 是一个任务级启发式量：
+        # 它估计“在当前 terrain 平台上，后续还允许分配多少 xy 行走任务”。
+        # 这个量只和 xy 命令有关，因此如果后续新增垂向/跳跃命令，需要单独思考它们是否应该参与类似预算。
         remaining_dist = torch.clip(0.625 * self.cfg.terrain.terrain_length - torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * self.cfg.commands.resampling_time, 0.0)
         # 每次重采样后，都把“下次还要过多少 step 才再采样”重置回 resampling_time 对应步数。
         self.commands_resampling_step[env_ids] = self.cfg.commands.resampling_time / self.dt
@@ -700,21 +749,33 @@ class LeggedRobot(BaseTask):
         Returns:
             [torch.Tensor]: Torques sent to the simulation
         """
+        # 这是“策略输出”真正接入物理世界的地方。
+        # 可以把上游流程粗略理解成：
+        # command -> observation -> policy action -> torque -> simulator。
+        # 其中本函数只负责最后两步之间的映射。
+        # 所以像“新增高度命令/跳跃命令”这类高层任务改动，
+        # 往往优先影响的是 command / observation / reward，
+        # 而不是这里的底层执行器映射。
         # 统一先做 `action_scale`，让 policy 输出落在一个相对稳定的范围。
         # 之后再根据 control_type 决定它代表角度偏移、速度目标还是直接力矩。
         actions_scaled = actions * self.cfg.control.action_scale
         control_type = self.cfg.control.control_type
-        p_gains = self.p_gains * self.p_gains_multiplier
+        p_gains = self.p_gains * self.p_gains_multiplier # [new] multiplier 是随机量，在 action_scale 之后再乘能保持随机化和 action_scale 的解耦。
         d_gains = self.d_gains * self.d_gains_multiplier
         if control_type=="P":
             # Position mode: 目标角 = default pose + action offset + motor zero calibration。
-            torques = p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains*self.dof_vel
+            # 这是本仓库主线最常见的控制模式：
+            # policy 不直接输出目标关节角，而是输出“相对默认站姿的偏移量”。
+            torques = p_gains * (actions_scaled + self.default_dof_pos - self.dof_pos + self.motor_zero_offsets) - d_gains * self.dof_vel
         elif control_type=="V":
+            # Velocity mode: action 被解释成目标关节速度。
             torques = p_gains*(actions_scaled - self.dof_vel) - d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
+            # Torque mode: action 几乎直接就是力矩命令，只保留比例缩放与最终裁剪。
             torques = actions_scaled
         else:
             raise NameError(f"Unknown controller type: {control_type}")
+        # 最后统一按 URDF/资产给出的极限做裁剪，避免输出超出模拟器允许范围。
         return torch.clip(torques, -self.torque_limits, self.torque_limits)
 
     def _reset_dofs(self, env_ids):
@@ -725,10 +786,14 @@ class LeggedRobot(BaseTask):
         Args:
             env_ids (List[int]): Environemnt ids
         """
+        # 关节 reset 不是精确回到唯一姿态，而是在默认角附近随机扰动。
+        # 这样做能减少策略对“固定开局姿势”的依赖，让恢复能力更强。
         self.dof_pos[env_ids] = self.default_dof_pos * torch_rand_float(0.5, 1.5, (len(env_ids), self.num_dof), device=self.device)
+        # 新 episode 的关节速度清零，避免把上一局残余摆动带进来。
         self.dof_vel[env_ids] = 0.
 
         env_ids_int32 = env_ids.to(dtype=torch.int32)
+        # 这一句才是把新的 DOF 状态真正写回 simulator。
         self.gym.set_dof_state_tensor_indexed(self.sim,
                                               gymtorch.unwrap_tensor(self.dof_state),
                                               gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
@@ -739,6 +804,8 @@ class LeggedRobot(BaseTask):
         Args:
             env_ids (List[int]): Environemnt ids
         """
+        # `root_states` 代表机身根节点状态，包含位置、姿态、线速度、角速度。
+        # 对四足机器人来说，这几乎就是“机器人整个身体在世界里的起点”。
         if self.cfg.init_state.turn_over:
             self.turn_over_timer[env_ids] = 0.0
         # base position
@@ -753,6 +820,7 @@ class LeggedRobot(BaseTask):
         base_init_state = self.base_init_state.reshape(1, -1).repeat(len(env_ids), 1)
         if self.cfg.init_state.turn_over:
             # 如果开启 turn-over 训练，则按给定比例随机生成后翻/侧翻/正常朝向三种初始姿态。
+            # 这相当于主动制造“机器人已经倒地”的训练样本。
             rand_prob = torch.rand(len(env_ids), device=self.device)
             proportions = self.cfg.init_state.turn_over_proportions
             init_heights = self.cfg.init_state.turn_over_init_heights
@@ -804,10 +872,13 @@ class LeggedRobot(BaseTask):
         else:
             self.root_states[env_ids] = base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
+        # 上面的 `env_origins` 决定“每个并行环境在总地图中的出生位置”。
+        # rough terrain 和 plane 模式下，它的来源不同，但用法一致。
         # base velocities
         # 初速度也做轻微随机化，避免 reset 后永远从完全静止的理想状态开始。
         self.root_states[env_ids, 7:13] = torch_rand_float(-0.5, 0.5, (len(env_ids), 6), device=self.device) # [7:10]: lin vel, [10:13]: ang vel
         env_ids_int32 = env_ids.to(dtype=torch.int32)
+        # 这一步把 root state 同步回 simulator，和前面的 torch 缓存保持一致。
         self.gym.set_actor_root_state_tensor_indexed(self.sim,
                                                      gymtorch.unwrap_tensor(self.root_states),
                                                      gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))
@@ -815,6 +886,8 @@ class LeggedRobot(BaseTask):
     def _push_robots(self):
         """ Random pushes the robots. Emulates an impulse by setting a randomized base velocity. 
         """
+        # 这是训练鲁棒性的常见技巧：定期给机器人一个“突然被撞了一下”的扰动。
+        # 实现上不是施加物理外力，而是直接改写机身速度状态。
         env_ids = torch.arange(self.num_envs, device=self.device)
         push_env_ids = env_ids[self.episode_length_buf[env_ids] % int(self.cfg.domain_rand.push_interval) == 0]
         if len(push_env_ids) == 0:
@@ -842,6 +915,8 @@ class LeggedRobot(BaseTask):
         # If the tracking reward is above 80% of the maximum, increase the range of commands
         if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
             # 这里只扩 x 方向速度范围，假设主要 curriculum 目标是让机器人“先会走，再走更快”。
+            # 对新手来说，可以把它理解成自动调难度：
+            # 学得足够好了，就给更大的速度任务范围。
             self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
             self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
 
@@ -892,7 +967,18 @@ class LeggedRobot(BaseTask):
         # create some wrapper tensors for different slices
         # 下面这一组 tensor 是整个环境最核心的运行时状态缓存。
         # 几乎所有 reward / observation / reset 逻辑都会直接读写它们。
+        # 对新手来说，最重要的是先区分两类来源：
+        # 1. “镜像 simulator 的原始状态”：root/dof/contact/rigid-body
+        # 2. “由原始状态派生/缓存出来的中间量”：base velocity、projected_gravity、commands、历史动作等
+        # 第一类更像事实真值缓存，第二类更像为 reward/obs/课程学习服务的工作内存。
         self.root_states = gymtorch.wrap_tensor(actor_root_state)
+        # `root_states`: 机身根节点状态，shape = [num_envs, 13]。
+        # 常用槽位语义：
+        # [0:3]  world position
+        # [3:7]  quaternion
+        # [7:10] world linear velocity
+        # [10:13] world angular velocity
+        # 注意后续 `base_lin_vel` / `base_ang_vel` 会再把速度旋回机身坐标系。
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
         # dof_state 的最后一维长度为 2，分别是 position / velocity。
         self.dof_pos = self.dof_state.view(self.num_envs, self.num_dof, 2)[..., 0]
@@ -917,27 +1003,45 @@ class LeggedRobot(BaseTask):
 
         # initialize some data used later on
         self.common_step_counter = 0
+        # `common_step_counter`: 全局累计环境步数，不会在单个 env reset 时清零。
+        # 它通常用于“按训练进度变化”的逻辑，例如 reward curriculum / command curriculum。
         self.extras = {}
         self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
         # `gravity_vec` / `forward_vec` 会反复参与坐标变换，因此预先为每个 env 准备好。
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
         self.forward_vec = to_torch([1., 0., 0.], device=self.device).repeat((self.num_envs, 1))
         # `actions` / `last_actions` / `last_dof_vel` 这类张量通常用于 reward 中的平滑项。
+        # --- 动作与执行器相关 buffer ---
         self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        # `torques`: 最终送入 simulator 的电机力矩命令。
+        # 它是“动作解释器” `_compute_torques()` 的输出，也是若干能耗/力矩惩罚 reward 的直接输入。
         self.p_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.d_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
         self.last_actions = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        # `actions` / `last_actions`: 当前策略输出与上一时刻输出。
+        # 常用于动作平滑、二阶差分平滑等 reward，也可帮助观测隐式表达控制惯性。
         self.last_dof_vel = torch.zeros_like(self.dof_vel)
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
+        # `last_dof_vel` / `last_root_vel`: 一帧历史缓存，常用于近似加速度或平滑项。
+        # `self.commands` 是训练时“高层任务目标”的主缓存。
+        # 当前默认语义是：[x 速度, y 速度, yaw 角速度, heading]。
+        # 这里的第二维长度来自 `cfg.commands.num_commands`，因此扩容命令张量时第一步通常改这里。
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
+        # `commands`: 任务采样器给策略设置的高层目标，不是机器人当前真实状态。
+        # 一个常见误解是把它当“观测的一部分”；实际上它先是内部目标，
+        # 之后只有被显式拼进 `obs_buf` 的那几维，才真正对 actor 可见。
         # command 的 scale 只用于把 command 数值映射到 observation 的合理量级。
+        # 这里目前被硬编码成 3 维，对应显式送入 observation 的 `x/y/yaw`。
+        # 这也是扩展更多显式命令时最容易漏改的结构性限制之一。
         self.commands_scale = torch.tensor([self.obs_scales.lin_vel, self.obs_scales.lin_vel, self.obs_scales.ang_vel], device=self.device, requires_grad=False,) # TODO change this
         # `commands_resampling_step` 像一个倒计时器：每走一步减 1，减到 0 就重新采 command。
         self.commands_resampling_step = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         # 这个量不是机器人真实位移，而是“累计发出去的命令向量和”，
         # 常用于 curriculum 判断任务要求的理论行走距离。
         self.commands_xy_accumulation = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
+        # `commands_xy_accumulation` 不是传感器量，而是训练过程中的 bookkeeping buffer。
+        # 它回答的问题更像：“这局理论上被要求走了多少 xy 距离？”
         self.zero_command_proba = 0.0
         # `feet_air_time` 按脚分别计时，shape = [num_envs, num_feet]。
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)
@@ -946,6 +1050,7 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         # `max_move_distance` 是本局走到过的最远距离，不是当前距离。
+        # --- terrain / curriculum / reset 相关 buffer ---
         self.max_move_distance = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.stop_heading = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
         self.last_is_limit_vel = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
@@ -958,6 +1063,8 @@ class LeggedRobot(BaseTask):
             self.cfg.commands.limit_vel["ang_vel_yaw"]
         )), device=self.device, requires_grad=False)
         self.last_robot_props_update_step = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
+        # `last_robot_props_update_step`: 预留给“按训练进度定期改 robot properties”的计时参考。
+        # 它不是每个任务都在用，但属于 domain randomization 相关状态缓存的一部分。
         # `turn_over_timer` > 0 表示该 env 还在翻身恢复保护期内。
         self.turn_over_timer = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         # `env_command_ranges` 是 env 级别的最终 command 上下界，
@@ -971,6 +1078,10 @@ class LeggedRobot(BaseTask):
         self._update_env_command_ranges()
 
         # joint positions offsets and PD gains
+        # 这一组是“动作解释器”的静态参考系：
+        # - `default_dof_pos` 决定 action=0 时的默认目标姿态
+        # - `p_gains` / `d_gains` 决定 action 到 torque 的控制刚度
+        # 新机器人接入时，这一段几乎总是最先需要核对的部分之一。
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         for i in range(self.num_dofs):
             name = self.dof_names[i]
@@ -995,6 +1106,8 @@ class LeggedRobot(BaseTask):
     
     def _update_env_command_ranges(self):
         """ Update environment-wise command ranges based on current command ranges and terrain type """
+        # 这个函数的职责不是“采样命令”，而是先算出“每个 env 允许采样到什么范围”。
+        # 真正的随机采样发生在 `_resample_commands()`。
         if not hasattr(self, 'terrain_ids'):
             self.env_command_ranges = {
                 'lin_vel_x': torch.tensor(self.command_ranges['lin_vel_x'], device=self.device, requires_grad=False).repeat(self.num_envs, 1),
@@ -1105,8 +1218,9 @@ class LeggedRobot(BaseTask):
                 2.3 create actor with these properties and add them to the env
              3. Store indices of different bodies of the robot
         """
-          # 这里完成从 URDF 到 batched env 的映射：
-          # 机器人资产只加载一次，然后被复制到多个 environment 实例中。
+                # 这里完成从 URDF 到 batched env 的映射：
+                # 机器人资产只加载一次，然后被复制到多个 environment 实例中。
+                # 你可以把它想成“先造一个机器人模板，再批量复制成很多训练副本”。
         asset_path = self.cfg.asset.file.format(LEGGED_GYM_ROOT_DIR=LEGGED_GYM_ROOT_DIR)
         asset_root = os.path.dirname(asset_path)
         asset_file = os.path.basename(asset_path)
@@ -1168,7 +1282,8 @@ class LeggedRobot(BaseTask):
         self.actor_handles = []
         self.envs = []
         for i in range(self.num_envs):
-            # create env instance
+            # 每个循环体对应一个并行环境实例。
+            # 它们共享同一个机器人模型定义，但状态、随机化结果、地形位置都彼此独立。
             env_handle = self.gym.create_env(self.sim, env_lower, env_upper, int(np.sqrt(self.num_envs)))
             pos = self.env_origins[i].clone()
             # 即使 env origin 已经固定，仍再加一点随机 xy 偏移，避免所有机器人都从完全同一个局部地形点出生。
@@ -1209,6 +1324,8 @@ class LeggedRobot(BaseTask):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
             Otherwise create a grid.
         """
+        # `env_origins` 是并行环境的“出生点表”。
+        # 后续 reset、距离统计、terrain curriculum 都要依赖它。
         if self.cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
             self.custom_origins = True
             self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
@@ -1233,6 +1350,7 @@ class LeggedRobot(BaseTask):
 
             self.max_terrain_level = self.cfg.terrain.num_rows
             self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
+            # rough terrain 下，origin 来自 terrain 生成器给出的各个平台中心。
             self.env_origins[:] = self.terrain_origins[self.terrain_levels, self.terrain_types]
         
         else:
@@ -1255,6 +1373,7 @@ class LeggedRobot(BaseTask):
         self.obs_scales = self.cfg.normalization.obs_scales
         self.reward_scales = class_to_dict(self.cfg.rewards.scales)
         self.reward_turn_over_scales = class_to_dict(self.cfg.rewards.turn_over_scales)
+        # `command_ranges` 在这里被转成普通 dict，后续会在 curriculum / terrain 裁剪中反复更新。
         self.command_ranges = class_to_dict(self.cfg.commands.ranges)
         self.max_lin_vel = max(abs(self.command_ranges["lin_vel_x"][0]), abs(self.command_ranges["lin_vel_x"][1]),
                                abs(self.command_ranges["lin_vel_y"][0]), abs(self.command_ranges["lin_vel_y"][1]))
@@ -1310,13 +1429,16 @@ class LeggedRobot(BaseTask):
         if not self.init_done or self.cfg.terrain.mesh_type == 'plane':
             # don't change on initial reset
             return
-        # distance = torch.norm(self.root_states[env_ids, :2] - self.env_origins[env_ids, :2], dim=1)
+        # 这里使用的是“本 episode 走到过的最远距离”，
+        # 而不是 reset 前最后一帧的位置距离。
+        # 这样机器人就算走远后又退回来，也仍会被认为“有能力通过当前地形”。
         distance = self.max_move_distance[env_ids]
         # robots that walked far enough progress to harder terains
         move_up = distance > self.terrain.env_length / 2
         if self.cfg.terrain.move_down_by_accumulated_xy_command:
             # 如果打开 accumulated_xy_command 模式，
             # “是否该降难度”不再看绝对位移，而看是否完成了累计命令要求的路程。
+            # 直观上，它更像“按布置的作业量评分”，而不是只看最终走了多远。
             move_down = (distance < torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * (self.cfg.commands.resampling_time * (1 - self.zero_command_proba)) * 0.5) * ~move_up
         else:
             # robots that walked less than half of their required distance go to simpler terrains
@@ -1324,10 +1446,12 @@ class LeggedRobot(BaseTask):
         
         self.terrain_levels[env_ids] += 1 * move_up - 1 * move_down
         # Robots that solve the last level are sent to a random one
+        # 这能避免所有高水平 env 永远挤在最后一层，同时维持训练分布多样性。
         self.terrain_levels[env_ids] = torch.where(self.terrain_levels[env_ids]>=self.max_terrain_level,
                                                    torch.randint_like(self.terrain_levels[env_ids], self.max_terrain_level),
                                                    torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
+        # 每次 reset 后重新开始统计“这一局能走多远”。
         self.max_move_distance[env_ids] = 0.0
         
 
@@ -1503,6 +1627,8 @@ class LeggedRobot(BaseTask):
 
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
+        # 当前 tracking reward 只关心前 2 维线速度命令。
+        # 如果未来新增高度/跳跃类命令，它们不会自动出现在 reward 中，通常需要单独新增 `_reward_*()`。
         if self.cfg.rewards.dynamic_sigma is None:
             sigma_x = sigma_y = self.cfg.rewards.tracking_sigma
         else:
@@ -1518,7 +1644,9 @@ class LeggedRobot(BaseTask):
         return torch.exp(-scaled_error)
     
     def _reward_tracking_ang_vel(self):
-        # Tracking of angular velocity commands (yaw) 
+        # Tracking of angular velocity commands (yaw)
+        # 当前只跟踪 `commands[:, 2]`，也就是 yaw 角速度目标。
+        # 若改成“heading 显式进 obs + heading 单独奖励”或新增跳跃相位命令，这里都需要重新审视。
         if self.cfg.rewards.dynamic_sigma is None:
             sigma = self.cfg.rewards.tracking_sigma
         else:

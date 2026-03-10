@@ -432,6 +432,221 @@ _reward_hip_to_default()
 
 **这是最适合新手入门的第一类二次开发。**
 
+### 8.3 奖励系统为什么会让新手觉得“很绕”
+
+很多人第一次看 reward，会以为它只是：
+
+1. 在配置里写几个系数；
+2. 在代码里写几个 `_reward_xxx()`；
+3. 然后求和。
+
+但当前仓库里的奖励系统其实已经有 **4 层结构**：
+
+1. **配置层**：在 [legged_gym/envs/go2/go2_config.py](../legged_gym/envs/go2/go2_config.py) 或 [legged_gym/envs/base/legged_robot_config.py](../legged_gym/envs/base/legged_robot_config.py) 里定义 `rewards.scales`；
+2. **绑定层**：在 [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py) 的 `_prepare_reward_function()` 中，把配置名自动映射到 `_reward_xxx()`；
+3. **运行层**：每一步在 `compute_reward()` 里读取当前物理状态、命令状态、动作历史，真正算出每项 reward；
+4. **课程层**：reward 还可能继续受到 `curriculum_rewards`、`turn_over_scales`、`dynamic_sigma` 的二次调制。
+
+所以它复杂，不是因为“reward 名字多”，而是因为它已经从一个静态打分器，变成了一个**会随着训练阶段、地形类型、命令难度、机器人姿态切换规则的动态打分系统**。
+
+### 8.4 读 reward 时，建议按“数据流”而不是按“函数顺序”理解
+
+可以把当前 reward 系统理解成下面这条链：
+
+1. `cfg.rewards.scales.xxx` 决定某个 reward 是否启用；
+2. `_prepare_reward_function()` 把所有非零项收集起来；
+3. 同时把 scale 乘上 `dt`；
+4. `compute_reward()` 每个 step 调用对应的 `_reward_xxx()`；
+5. 原始 reward 值再乘以 scale / curriculum scale / turn-over scale；
+6. 所有项累加成 `self.rew_buf`；
+7. 每项还会单独累计进 `self.episode_sums[name]`，供日志统计。
+
+这里有一个新手很容易忽略的点：
+
+> 配置里的 reward scale 会在 `_prepare_reward_function()` 中乘上 `dt`。
+
+这意味着配置中的系数，更接近“每秒量级”的直觉；真正到每个仿真 step 使用时，已经被折算成单步权重了。
+
+所以如果你改了 `decimation` 或底层仿真 `dt`，reward 的体感也可能跟着变化，不一定只是控制频率在变。
+
+### 8.5 当前 reward 可以分成哪几类
+
+如果直接从 [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py) 往下看 `_reward_*()`，会觉得很多；但按设计目标分组后就清楚很多。
+
+#### A. 任务跟踪类：机器人有没有完成命令
+
+- `_reward_tracking_lin_vel()`
+- `_reward_tracking_ang_vel()`
+
+这两项本质上在回答：
+
+- 你给的 `x/y/yaw` 命令，机器人有没有跟上？
+- 速度误差越小，reward 越接近 1；误差越大，reward 越接近 0。
+
+这也是为什么 **命令系统和奖励系统必须一起看**：
+
+- 命令采样太保守，tracking reward 会很好看，但任务可能太简单；
+- 命令采样太激进，tracking reward 会变差，但不一定是策略退化，也可能只是任务更难了。
+
+#### B. 姿态稳定类：机器人有没有站稳
+
+- `_reward_orientation()`
+- `_reward_upright()`
+- `_reward_lin_vel_z()`
+- `_reward_ang_vel_xy()`
+
+这一组主要抑制：
+
+- 机身左右乱晃；
+- 上下乱弹；
+- pitch / roll 抖动过大；
+- 翻倒或明显倾斜。
+
+其中 `upright` 是当前版本里比较“恢复训练导向”的奖励，尤其配合 turn-over 训练时更重要；而 `orientation` 更像传统 locomotion 里的“尽量保持平稳底盘”。
+
+#### C. 几何与高度类：身体和地面的相对关系对不对
+
+- `_reward_base_height()`
+- `_reward_correct_base_height()`
+- `_reward_legs_distance()`
+- `Go2Robot._reward_hip_to_default()`
+
+这组 reward 关注的是：
+
+- 机身离地高度是否合理；
+- 双腿/髋关节姿态是否太奇怪；
+- 步态是否偏离默认站姿太多。
+
+这里当前版本和 [legged_gym/envs/base/original.py](../legged_gym/envs/base/original.py) 的差异很大。
+
+`original.py` 里的高度奖励更接近“直接拿 base 高度或高度图均值来算”，而当前版会结合：
+
+- 足端接触；
+- 刚体状态；
+- 局部高度扫描；
+
+去估计“机器人相对当前地面的有效高度”。这对台阶、斜坡、障碍物环境更合理，但也让 reward 变得更难一眼看懂。
+
+#### D. 平滑与能耗类：动作是不是太猛、太抖、太费电
+
+- `_reward_torques()`
+- `_reward_dof_acc()`
+- `_reward_action_rate()`
+- `_reward_action_smoothness()`
+- `_reward_dof_power()`
+
+这一组通常不是为了“让机器人走起来”，而是为了避免它：
+
+- 用很暴力的控制硬顶出一个步态；
+- 每一帧都大幅切动作；
+- 力矩和速度都过大，导致高能耗、难迁移到真机。
+
+对真机迁移来说，这一组往往非常重要。因为很多仿真里能跑的动作，真正上机时会因为：
+
+- 电机发热；
+- 接触冲击；
+- 摩擦不一致；
+- 动作不连续；
+
+而表现很差。
+
+#### E. 接触与步态类：脚落地得像不像“正常走路”
+
+- `_reward_feet_air_time()`
+- `_reward_feet_contact_forces()`
+- `_reward_feet_regulation()`
+- `_reward_stumble()`
+
+这组主要在塑造步态细节：
+
+- 脚是不是有明确抬起和落下；
+- 落地接触力是不是太大；
+- 摆腿快的时候，有没有把脚适当抬高；
+- 是否频繁踢到台阶立面或障碍物侧面。
+
+如果你后面发现机器人“能动，但动作很脏”，问题经常就在这组 reward 上，而不是 tracking reward 本身。
+
+#### F. 安全边界类：别把关节、电机和碰撞推到极限
+
+- `_reward_collision()`
+- `_reward_dof_pos_limits()`
+- `_reward_dof_vel_limits()`
+- `_reward_torque_limits()`
+- `_reward_similar_to_default()`
+
+这组 reward 可以理解为“防止策略钻仿真漏洞”。
+
+没有这些约束时，策略可能会为了多拿一点 tracking reward，去使用：
+
+- 贴着关节限位抖动；
+- 高频大力矩抽动；
+- 让不该碰地的 body 碰地；
+- 长期保持一种不适合真实机器人的怪姿态。
+
+### 8.6 当前版比 `original.py` 多复杂在哪里
+
+如果和 [legged_gym/envs/base/original.py](../legged_gym/envs/base/original.py) 对比，当前 reward 不是简单“多几个名字”，而是多了几种复杂性来源：
+
+1. **更多状态依赖**：现在 reward 会更频繁读取 `rigid_body_states`、`contact_forces`、动作历史、脚接触历史；
+2. **更多训练阶段切换**：turn-over 模式下，同一个 reward 会在“翻身阶段”和“正常行走阶段”切换不同 scale；
+3. **更多课程机制**：`curriculum_rewards` 可以让 reward 权重随训练迭代线性变化；
+4. **更多难度自适应**：`dynamic_sigma` 会根据命令速度和 terrain 难度改变 tracking reward 的容忍度。
+
+所以当前 reward 更像“任务设计系统”，而 `original.py` 更接近“传统 locomotion 打分器”。
+
+### 8.7 `dynamic_sigma` 到底在解决什么问题
+
+这是当前版本 reward 里最容易被忽略、但很关键的一层。
+
+直觉上，固定的 tracking sigma 有个问题：
+
+- 对低速、平地命令来说，它可能刚好；
+- 但对高速、难地形命令来说，要求就会显得过严。
+
+于是当前版会根据：
+
+- 当前命令速度大小；
+- 当前 terrain 类型；
+- 当前 terrain level；
+
+动态放宽 tracking reward 的“容错半径”。
+
+你可以把它理解成：
+
+> 在容易任务上，老师打分严格；在高速、难地形任务上，老师适当放宽标准。
+
+这样训练出来的策略，通常更容易在“既要高速、又要复杂地形”的混合任务下稳定学习。
+
+### 8.8 reward curriculum 该怎么理解
+
+当前版除了 command curriculum，还有 reward curriculum。
+
+这意味着某些 reward 项不是从训练一开始就固定权重，而是会按照配置中的区间，例如：
+
+- 从第 0 次迭代到第 1500 次迭代；
+- 从 `start_value` 线性过渡到 `end_value`。
+
+这类设计常用于：
+
+- 训练前期先更重视姿态或高度；
+- 训练后期再逐渐减弱某些辅助 reward；
+- 避免一开始约束太多，策略连基本移动都学不会。
+
+### 8.9 新手二开 reward，建议按这 4 层改
+
+如果你想改 reward，不要一上来就重写半个环境，建议按风险从低到高排序：
+
+1. **最低风险**：只改 `rewards.scales`；
+2. **中低风险**：新增一个简单的 `_reward_xxx()`；
+3. **中风险**：修改现有 reward 的公式或依赖 buffer；
+4. **高风险**：同时改 reward、obs、command 三者的耦合关系。
+
+最常见的错误不是公式写错，而是：
+
+- reward 名字和函数名字对不上；
+- 改了 reward，但没有意识到它还受 curriculum / turn-over scale 影响；
+- 只看总 reward，不看 `episode_sums` 里的单项统计。
+
 ---
 
 ## 9. 观测是怎么构造的
@@ -551,6 +766,75 @@ $$
 
 这也是 TensorBoard 里很多统计指标的来源。
 
+### 10.5 `legged_robot.py` 和 `original.py` 的关系是什么
+
+如果你在目录里看到 [legged_gym/envs/base/original.py](../legged_gym/envs/base/original.py)，最容易产生两个误解：
+
+1. 它是不是当前真正被调用的环境；
+2. 当前 [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py) 只是加了一点注释。
+
+都不是。
+
+当前实际生效的是：
+
+- [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py)
+- [legged_gym/envs/go2/go2_env.py](../legged_gym/envs/go2/go2_env.py)
+- [legged_gym/envs/__init__.py](../legged_gym/envs/__init__.py)
+
+而 [legged_gym/envs/base/original.py](../legged_gym/envs/base/original.py) 更像仓库里保留的一份“旧版/原始参考实现”。
+
+### 10.6 当前版和 `original.py` 的主循环差异
+
+如果只看大框架，两者都还是：
+
+1. 接收 action；
+2. 推进仿真；
+3. 刷新状态；
+4. 计算 reward；
+5. reset；
+6. 输出 obs。
+
+但当前版已经在几个关键位置明显扩展了：
+
+#### A. `step()` 更复杂
+
+`original.py` 的 `step()` 更接近“动作直接进 `_compute_torques()`，然后推进物理”。
+
+当前版多了：
+
+- action delay 域随机化；
+- motor strength 域随机化；
+- test 模式下按仿真时间节奏 sleep；
+- 更强的和 reset / curriculum 配套的状态维护。
+
+#### B. `post_physics_step()` 更像总调度器
+
+当前版这里不只是在算 reward，还会维护：
+
+- `base_pos`、`rpy`、`base_lin_vel`、`base_ang_vel`；
+- `commands_resampling_step` 倒计时；
+- reward curriculum；
+- turn-over 计时器；
+- `max_move_distance`；
+- push robots；
+- `rigid_body_states` 相关逻辑。
+
+这就是为什么你会觉得当前 `legged_robot.py` 逻辑“很厚”——它已经不是一个单纯的环境外壳，而是把训练难度控制、恢复训练、真机鲁棒性增强都塞进来了。
+
+#### C. `reset_idx()` 不再只是“回到初始状态”
+
+在 `original.py` 中，reset 逻辑相对更直接。
+
+当前版 reset 已经承担：
+
+- reset 级别的 domain randomization；
+- terrain curriculum 更新；
+- command 重采样；
+- 日志统计写回；
+- 起身/翻倒训练的状态清理。
+
+所以现在的 reset 更接近一次“局部重新开局”，而不只是清 buffer。
+
 ---
 
 ## 11. 命令采样与 curriculum 是怎么工作的
@@ -566,6 +850,190 @@ $$
 - 在翻倒初始化场景下强制一段时间保持零命令。
 
 所以当你觉得“为什么机器人总是在某些速度范围里动”，先别急着看 reward，先看 `commands` 配置和 `_resample_commands()`。
+
+### 11.1 命令系统里最重要的 4 个张量/变量
+
+要读懂命令系统，先不要一上来扎进 `_resample_commands()`，先记住下面几个核心对象：
+
+1. `self.commands`：当前环境真正持有的命令张量；
+2. `self.command_ranges`：全局命令范围，会被训练进度更新；
+3. `self.env_command_ranges`：按地形裁剪后的每个 env 专属范围；
+4. `self.commands_resampling_step`：距离下次重采样还有多少 step。
+
+其中最容易误解的是 `self.commands`。
+
+当前主线里它的内部语义是：
+
+- 第 1 维：`lin_vel_x`
+- 第 2 维：`lin_vel_y`
+- 第 3 维：`ang_vel_yaw`
+- 第 4 维：`heading`
+
+但是：
+
+> actor observation 当前只显式使用前 3 维。
+
+也就是说，**内部命令维度** 和 **策略显式看到的命令维度** 不是一回事。
+
+这正是很多新手第一次改 command 时最容易踩坑的地方。
+
+### 11.2 命令的完整生命周期
+
+可以把一条 command 的生命周期理解成：
+
+1. `_parse_cfg()` 先把配置里的 `commands.ranges` 读到运行时；
+2. 每个 env 在 reset 时会先采一次 command；
+3. rollout 过程中，`post_physics_step()` 会让 `commands_resampling_step` 递减；
+4. 倒计时归零时，在 `_post_physics_step_callback()` 里触发 `_resample_commands()`；
+5. 如有 `heading_command`，第 4 维 heading 会被转换成第 3 维 yaw 角速度目标；
+6. 新命令再进入：
+	 - observation；
+	 - tracking reward；
+	 - terrain curriculum 距离统计。
+
+你可以把它理解成：
+
+> command 不是一个静态标签，而是环境每隔一段时间重新发布给机器人的“短期任务单”。
+
+### 11.3 为什么当前版不是简单“固定时间随机采样一下速度”
+
+在 [legged_gym/envs/base/original.py](../legged_gym/envs/base/original.py) 里，命令逻辑相对简单：
+
+- 从全局范围里采样；
+- 小速度命令清零；
+- 到了重采样时刻再重新给一组。
+
+当前版则额外加入了几层控制：
+
+1. **训练进度课程**：训练到一定迭代数后，自动放大命令范围；
+2. **地形约束**：同样是全局速度范围，不同地形还能再做一次上限裁剪；
+3. **动态下界**：剩余时间越少、剩余目标距离越大，下一次命令采样的速度下界越高；
+4. **特殊模板**：命令有概率被替换成边界速度、零命令、原地转向等特殊模式；
+5. **turn-over 保护**：翻身/起身阶段强制发零命令。
+
+所以它本质上已经不只是一个“速度采样器”，而是一个**任务调度器**。
+
+### 11.4 `heading_command` 到底在干什么
+
+当 `heading_command=True` 时，环境并不是让策略直接跟踪“一个给定 yaw 速度”，而是：
+
+1. 在 `self.commands[:, 3]` 里存目标 heading；
+2. 在 `_post_physics_step_callback()` 中拿当前朝向和目标 heading 做差；
+3. 把这个 heading error 转成 `self.commands[:, 2]` 的 yaw 角速度目标。
+
+也就是说：
+
+- 第 4 维更像“朝哪里看”；
+- 第 3 维更像“现在该以多快角速度去转过去”。
+
+这是一种很常见的两层控制思想：
+
+- 高层给方向目标；
+- 底层再变成速度目标。
+
+但本仓库当前 Go2 主线默认把它关掉，因为真机和任务目标上，更偏向直接给速度命令。
+
+### 11.5 `limit_vel` 为什么很重要
+
+`limit_vel` 是当前版命令系统里非常工程化、也非常实用的一层。
+
+它不是继续从连续区间采样，而是直接从：
+
+- 最小值；
+- 0；
+- 最大值；
+
+这些离散边界里组合出命令。
+
+这样做的好处是，机器人会更频繁地遇到一些真实控制里很关键的边界场景，比如：
+
+- 纯前进；
+- 纯后退；
+- 纯横移；
+- 纯原地左转/右转；
+- 从一个极限方向突然反向。
+
+如果没有这一层，连续随机采样虽然“平均”，但反而可能不容易覆盖这些极端但重要的动作模式。
+
+### 11.6 `zero_command_curriculum` 不只是“让机器人停一下”
+
+零命令课程的直观作用，是让机器人学会：
+
+- 不该动的时候站稳；
+- 命令从运动切回静止时不要乱抖。
+
+但它更深一层的作用是：
+
+- 帮助策略建立“移动”和“稳定站立”这两种模式；
+- 避免策略在训练中永远都只会持续移动，不会停止。
+
+当前版还允许在零命令时，按概率附加边界 yaw 角速度，于是机器人还要学会“原地旋转但不平移”这种控制模式。
+
+### 11.7 `dynamic_resample_commands` 在命令层解决了什么问题
+
+如果 command 每次都允许采到很小速度，就会有一种情况：
+
+- episode 已经过了大半；
+- 机器人理论上还应该完成一段较远的路径；
+- 但环境却还可能继续采到很慢的命令；
+- 这会让任务本身变得“理论上不容易完成”。
+
+所以当前版会根据：
+
+- 当前还剩多少 episode 时间；
+- 当前累计命令大概还差多少距离；
+
+动态计算一个速度下界。
+
+通俗讲，它在做的是：
+
+> 既然你后面还得走这么远，那我接下来就别再给你一个慢得离谱的命令了。
+
+这会让 terrain curriculum 和 tracking 任务之间的逻辑更一致。
+
+### 11.8 `commands_xy_accumulation` 为什么会影响地形课程
+
+当前版里，terrain curriculum 不一定只看“机器人最后离出生点有多远”，还可能看：
+
+- 这一整局里，环境总共要求机器人在 xy 平面上完成多少命令位移。
+
+于是 `commands_xy_accumulation` 的作用就出来了：
+
+- 它近似记录“这局任务布置了多少路程”；
+- reset 时，`_update_terrain_curriculum()` 可以拿它来判断：
+	- 是机器人没走好；
+	- 还是命令本身就要求得不多。
+
+这比只看最终位移更公平，尤其在命令会多次切换的情况下。
+
+### 11.9 turn-over 模式为什么要强制清命令
+
+在翻倒恢复训练里，如果机器人刚 reset 成侧翻或仰翻状态，就立刻收到一个普通高速命令，训练信号会很乱：
+
+- 一方面 reward 希望它先起身；
+- 另一方面 command 又在要求它立刻前进或转向。
+
+所以当前版会在一段保护时间内，把命令强制清零。
+
+这段时间里，环境的主要目标就从“跟踪速度任务”切换成了“先恢复站立姿态”。
+
+### 11.10 新手二开 command，最容易漏掉哪几处
+
+如果你以后想给这个框架增加新的命令，比如：
+
+- 跳跃强度；
+- 目标高度；
+- 特殊 gait phase；
+
+通常至少要同步检查下面几层：
+
+1. [legged_gym/envs/base/legged_robot_config.py](../legged_gym/envs/base/legged_robot_config.py) 里的 `num_commands` 与范围配置；
+2. [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py) 的 `_resample_commands()`；
+3. [legged_gym/envs/base/legged_robot.py](../legged_gym/envs/base/legged_robot.py) 或 [legged_gym/envs/go2/go2_env.py](../legged_gym/envs/go2/go2_env.py) 的 `compute_observations()`；
+4. `_reward_tracking_*()` 或新增 reward；
+5. 部署端 obs / command 对齐逻辑。
+
+也就是说，**命令系统不是一个独立模块，而是贯穿配置、环境、奖励、观测、部署的横向主线。**
 
 ---
 

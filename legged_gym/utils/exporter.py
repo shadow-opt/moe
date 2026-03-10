@@ -74,6 +74,9 @@ class _TorchPolicyExporter(torch.nn.Module):
         if hasattr(policy, "student_encoder"):
             self.student_encoder = copy.deepcopy(policy.student_encoder).cpu()
             self.history = torch.zeros([1, policy.history.shape[1], policy.history.shape[2]], device='cpu')
+            # `history` 在导出侧依然要保留，说明 CTS/MoE 模型不是“单帧 obs -> action”的纯无状态策略，
+            # 而是会把最近若干帧 observation 作为一个滑动窗口输入 student encoder。
+            # 这也是为什么部署端必须和训练端保持同样的 history 维护逻辑。
             self.forward = self.forward_cts
         if hasattr(policy, "student_moe_encoder"):
             self.student_moe_encoder = copy.deepcopy(policy.student_moe_encoder).cpu()
@@ -128,6 +131,8 @@ class _TorchPolicyExporter(torch.nn.Module):
         return self.actor(self.normalizer(x))
     
     def forward_cts(self, x):  # x is single observations
+        # 单步部署时仍然会把新 obs 右移拼进 `history`，
+        # 因此这里的 `history` 可以看作导出模型内部自维护的状态 buffer。
         x = self.normalizer(x)
         self.history = torch.cat([self.history[:, 1:], x.unsqueeze(1)], dim=1)
         latent = self.student_encoder(self.history.flatten(1))
@@ -178,6 +183,8 @@ class _TorchPolicyExporter(torch.nn.Module):
     @torch.jit.export
     def reset(self):
         if hasattr(self, 'history'):
+            # 部署端 episode/reset 边界同样要清 history，
+            # 否则新一局会错误继承上一局末尾的时序上下文。
             self.history = torch.zeros_like(self.history)
 
     def reset_memory(self):

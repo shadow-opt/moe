@@ -6,6 +6,18 @@ from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
 
+"""环境任务注册入口。
+
+这里是“task 字符串真正落地”的地方。
+例如命令行里写 `--task go2`，最终就会在这里解析成：
+- 环境类：`Go2Robot`
+- 环境配置：`GO2Cfg`
+- 训练配置：`GO2CfgPPO`
+
+如果后续想新建一个“支持更多命令的新任务”，常见做法不是直接改训练脚本，
+而是新增一套配置/环境类后，在这里再注册一个新的任务名。
+"""
+
 task_registry.register("go2", Go2Robot, GO2Cfg(), GO2CfgPPO())
 task_registry.register("go2_cts", Go2Robot, GO2Cfg(), GO2CfgCTS())
 task_registry.register("go2_moe_cts", Go2Robot, GO2Cfg(), GO2CfgMoECTS())
@@ -13,3 +25,9 @@ task_registry.register("go2_moe_ng_cts", Go2Robot, GO2Cfg(), GO2CfgMoENGCTS())
 task_registry.register("go2_mcp_cts", Go2Robot, GO2Cfg(), GO2CfgMCPCTS())
 task_registry.register("go2_ac_moe_cts", Go2Robot, GO2Cfg(), GO2CfgACMoECTS())
 task_registry.register("go2_dual_moe_cts", Go2Robot, GO2Cfg(), GO2CfgDualMoECTS())
+
+# 当前主线真正注册生效的是上面这组 Go2 任务。
+# 如果你在仓库里还看到 `nocv`、`jump`、`original.py` 等实验/历史文件，
+# 不代表训练脚本默认就会走到它们。
+# 对新手来说，第一阅读优先级应始终是：
+# `task_registry.register(...)` 指向的环境类 + 配置类 + runner 配置。
