@@ -16,6 +16,16 @@ class NOCVCfg(GO2Cfg):
     4. 奖励侧按 command 档位切换 base height target。
     """
 
+
+    class asset(GO2Cfg.asset):
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/qianxihouzhouzu/urdf/qianxihouzhouzu.urdf'
+        name = 'qxhzz'
+        foot_name = 'foot'
+        terminate_after_contacts_on = ["base", "trunk"]
+        penalize_contacts_on = ["thigh", "calf", "hip"]
+        self_collisions = 0
+        flip_visual_attachments = False
+
     class env(GO2Cfg.env):
         # 主线 Go2 actor obs = 45，这里新增 1 维 body-height command，因此变为 46。
         num_observations = 46
@@ -66,4 +76,8 @@ class NOCVCfgMoECTS(GO2CfgMoECTS):
     这里只保留训练器侧配置继承；环境侧实际会配合 `NOCVCfg` 一起注册使用。
     """
 
-    pass
+    class runner(GO2CfgMoECTS.runner):
+        run_name = ''
+        experiment_name = 'nocv_moe_cts'
+        max_iterations = 150000
+        save_interval = 500
