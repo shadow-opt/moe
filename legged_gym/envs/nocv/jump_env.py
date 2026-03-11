@@ -1,5 +1,6 @@
 import torch
 from isaacgym.torch_utils import torch_rand_float
+from isaacgym.torch_utils import quat_rotate_inverse
 
 from legged_gym.envs.nocv.nocv_env import NoCVRobot
 
@@ -310,6 +311,35 @@ class JumpRobot(NoCVRobot):
         mask = self.jump_landed_this_step
         landing_error = torch.norm(self.landing_poses - self._get_jump_target_xy(), dim=1)
         return torch.exp(-landing_error / self.cfg.rewards.jump_land_sigma) * mask.float()
+
+    def _reward_jump_land_compact(self):
+        """落地一次性结算：鼓励前后足在 x 方向更紧凑。
+
+        计算方式：
+        1. 将四脚位置转换到 base 坐标系；
+        2. 取前足中心与后足中心的 x 向距离作为 stance length；
+        3. 仅当该距离超过阈值时才衰减奖励，避免过度干预正常落地稳定性。
+        """
+        mask = self.jump_landed_this_step
+        if not mask.any():
+            return mask.float()
+
+        feet_pos_world = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
+        feet_pos_relative_world = feet_pos_world - self.root_states[:, 0:3].unsqueeze(1)
+        feet_pos_local = quat_rotate_inverse(
+            self.base_quat.repeat_interleave(len(self.feet_indices), dim=0),
+            feet_pos_relative_world.reshape(-1, 3),
+        ).reshape(self.num_envs, len(self.feet_indices), 3)
+
+        # feet_indices 顺序约定为 [FL, FR, RL, RR]
+        front_center_x = feet_pos_local[:, 0:2, 0].mean(dim=1)
+        rear_center_x = feet_pos_local[:, 2:4, 0].mean(dim=1)
+        stance_length = torch.abs(front_center_x - rear_center_x)
+
+        max_length = self.cfg.rewards.jump_land_stance_length_max
+        sigma = self.cfg.rewards.jump_land_stance_length_sigma
+        excess = torch.clamp(stance_length - max_length, min=0.0)
+        return torch.exp(-torch.square(excess) / sigma) * mask.float()
 
     def _reward_jump_flight(self):
         """空中每步给予常量奖励，鼓励维持飞行时间。"""

@@ -71,6 +71,10 @@ class JUMPCfg(NOCVCfg):
 	class rewards(NOCVCfg.rewards):
 		jump_apex_sigma = 0.04
 		jump_land_sigma = 0.20
+		# 落地瞬间希望前后足不要拉得太开。
+		# 这里约束的是 base 坐标系下“前足中心 - 后足中心”的 x 向距离上限。
+		jump_land_stance_length_max = 0.24
+		jump_land_stance_length_sigma = 0.02
 
 		class scales(NOCVCfg.rewards.scales):
 			# jump 模式下，垂向速度 / 常规高度 / feet regulation 会与起跳和腾空目标直接对冲，
@@ -81,6 +85,7 @@ class JUMPCfg(NOCVCfg):
 			jump_takeoff_vel = 1.5
 			jump_apex_height = 2.0
 			jump_land_target = 3.0
+			jump_land_compact = 0.8
 			jump_flight = 0.5
 
 
