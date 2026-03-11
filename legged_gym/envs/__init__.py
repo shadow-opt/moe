@@ -4,6 +4,8 @@ from legged_gym.envs.go2.go2_env import Go2Robot
 from legged_gym.envs.go2.go2_config import GO2Cfg, GO2CfgPPO, GO2CfgCTS, GO2CfgMoECTS, GO2CfgMoENGCTS, GO2CfgMCPCTS, GO2CfgACMoECTS, GO2CfgDualMoECTS
 from legged_gym.envs.nocv.nocv_env import NoCVRobot
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg, NOCVCfgMoECTS
+from legged_gym.envs.nocv.jump_env import JumpRobot
+from legged_gym.envs.nocv.jump_cfg import JUMPCfg, JUMPCfgMoECTS
 from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
@@ -28,9 +30,6 @@ task_registry.register("go2_mcp_cts", Go2Robot, GO2Cfg(), GO2CfgMCPCTS())
 task_registry.register("go2_ac_moe_cts", Go2Robot, GO2Cfg(), GO2CfgACMoECTS())
 task_registry.register("go2_dual_moe_cts", Go2Robot, GO2Cfg(), GO2CfgDualMoECTS())
 task_registry.register("nocv", NoCVRobot, NOCVCfg(), NOCVCfgMoECTS())
+task_registry.register("jump", JumpRobot, JUMPCfg(), JUMPCfgMoECTS())
 
-# 当前主线真正注册生效的是上面这组 Go2 任务。
-# 如果你在仓库里还看到 `nocv`、`jump`、`original.py` 等实验/历史文件，
-# 不代表训练脚本默认就会走到它们。
-# 对新手来说，第一阅读优先级应始终是：
-# `task_registry.register(...)` 指向的环境类 + 配置类 + runner 配置。
+

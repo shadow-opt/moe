@@ -8,9 +8,9 @@ class NoCVRobot(Go2Robot):
 
     该环境继承自 `Go2Robot`，只在少量关键点上覆写主线行为，目标是：
     1. 在内部 command buffer 中新增第 5 维 `body_height_mode`；
-    2. 让该维度进入 actor observation 与 privileged observation；
-    3. 仅在指定 terrain 上采样“低高度”档位；
-    4. 当进入低高度档位时，同时适度降低速度命令；
+    2. 继续预留 jump 任务使用的 `jump_dx / jump_dy / jump_dz / jump_trigger`；
+    3. 让这些维度与 jump 任务保持一致地进入 actor / privileged observation；
+    4. 对于 NoCV 任务本身，jump 相关输入恒为 0；
     5. 奖励中的 base height target 随 command 档位切换。
 
     当前约定的 command 语义为：
@@ -18,7 +18,8 @@ class NoCVRobot(Go2Robot):
     - `commands[:, 1]`: `lin_vel_y`
     - `commands[:, 2]`: `ang_vel_yaw`
     - `commands[:, 3]`: `heading`（保持与基类兼容）
-    - `commands[:, 4]`: `body_height_mode`（本类新增）
+    - `commands[:, 4]`: `body_height_mode`
+    - `commands[:, 5:9]`: `jump_dx / jump_dy / jump_dz / jump_trigger`（NoCV 中恒为 0）
     """
 
     def _init_buffers(self):
@@ -26,21 +27,62 @@ class NoCVRobot(Go2Robot):
 
         这里最重要的事情有两件：
         1. 校验新增高度命令所在的槽位索引是否合法；
-        2. 把 `commands_scale` 从主线 Go2 的 3 维扩成 4 维，
-           使 observation 中显式使用的 command 段变为：
-           `[x_vel, y_vel, yaw_vel, body_height_mode]`。
+          2. 把 `commands_scale` 从主线 Go2 的 3 维扩成 8 维，
+              使 observation 中显式使用的 command 段变为：
+              `[x_vel, y_vel, yaw_vel, body_height_mode, jump_dx, jump_dy, jump_dz, jump_trigger]`。
 
         注意这里没有把 `heading` 送进 actor/critic obs；
-        因为主线 Go2 本身就只显式喂前 3 个 locomotion command，
-        NoCV 只是额外再显式加入 1 个高度档位 command。
+        因为主线 Go2 本身就只显式喂前 3 个 locomotion command。
+        NoCV/jump 共用同一份显式 command 布局，但 NoCV 默认把 jump 部分置零。
         """
         super()._init_buffers()
 
         self.body_height_command_idx = self.cfg.commands.body_height_command_idx
+        self.jump_dx_command_idx = self.cfg.commands.jump_dx_command_idx
+        self.jump_dy_command_idx = self.cfg.commands.jump_dy_command_idx
+        self.jump_dz_command_idx = self.cfg.commands.jump_dz_command_idx
+        self.jump_trigger_command_idx = self.cfg.commands.jump_trigger_command_idx
         if self.body_height_command_idx >= self.cfg.commands.num_commands:
             raise ValueError(
                 f"body_height_command_idx={self.body_height_command_idx} is out of range for "
                 f"num_commands={self.cfg.commands.num_commands}"
+            )
+
+        command_indices = {
+            "body_height_command_idx": self.body_height_command_idx,
+            "jump_dx_command_idx": self.jump_dx_command_idx,
+            "jump_dy_command_idx": self.jump_dy_command_idx,
+            "jump_dz_command_idx": self.jump_dz_command_idx,
+            "jump_trigger_command_idx": self.jump_trigger_command_idx,
+        }
+        for name, idx in command_indices.items():
+            if idx < 0 or idx >= self.cfg.commands.num_commands:
+                raise ValueError(
+                    f"{name}={idx} is out of range for num_commands={self.cfg.commands.num_commands}"
+                )
+
+        if not (
+            self.body_height_command_idx
+            < self.jump_dx_command_idx
+            < self.jump_dy_command_idx
+            < self.jump_dz_command_idx
+            < self.jump_trigger_command_idx
+        ):
+            raise ValueError(
+                "Expected command layout to be ordered as "
+                "body_height < jump_dx < jump_dy < jump_dz < jump_trigger"
+            )
+
+        if len(self.cfg.commands.jump_command_obs_scale) != 4:
+            raise ValueError(
+                "jump_command_obs_scale must contain 4 values: "
+                "[jump_dx, jump_dy, jump_dz, jump_trigger]"
+            )
+
+        if len(self.cfg.commands.low_height_command_velocity_scale) != 3:
+            raise ValueError(
+                "low_height_command_velocity_scale must contain 3 values: "
+                "[lin_vel_x, lin_vel_y, ang_vel_yaw]"
             )
 
         self.body_height_command_threshold = self.cfg.commands.body_height_command_threshold
@@ -50,6 +92,10 @@ class NoCVRobot(Go2Robot):
                 self.obs_scales.lin_vel,
                 self.obs_scales.ang_vel,
                 self.cfg.commands.body_height_command_obs_scale,
+                self.cfg.commands.jump_command_obs_scale[0],
+                self.cfg.commands.jump_command_obs_scale[1],
+                self.cfg.commands.jump_command_obs_scale[2],
+                self.cfg.commands.jump_command_obs_scale[3],
             ],
             device=self.device,
             requires_grad=False,
@@ -70,9 +116,9 @@ class NoCVRobot(Go2Robot):
     def _get_noise_scale_vec(self, cfg):
         """构造 NoCV 的 actor observation 噪声向量。
 
-        与 `Go2Robot` 的差别仅在于 command 段从 3 维变成 4 维：
-        - `[6:10]` 对应显式 command observation
-        - 其中新增的高度档位 command 与原有 command 一样，不加噪声
+        与 `Go2Robot` 的差别仅在于 command 段从 3 维变成 8 维：
+        - `[6:14]` 对应显式 command observation
+        - 其中新增的高度档位 / jump command 与原有 command 一样，不加噪声
 
         这样做的原因是：
         command 属于任务给定目标，不是传感器测量值；
@@ -85,10 +131,10 @@ class NoCVRobot(Go2Robot):
 
         noise_vec[:3] = noise_scales.ang_vel * noise_level * self.obs_scales.ang_vel
         noise_vec[3:6] = noise_scales.gravity * noise_level
-        noise_vec[6:10] = 0.0
-        noise_vec[10:10+self.num_actions] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
-        noise_vec[10+self.num_actions:10+2*self.num_actions] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
-        noise_vec[10+2*self.num_actions:10+3*self.num_actions] = 0.0
+        noise_vec[6:14] = 0.0
+        noise_vec[14:14+self.num_actions] = noise_scales.dof_pos * noise_level * self.obs_scales.dof_pos
+        noise_vec[14+self.num_actions:14+2*self.num_actions] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
+        noise_vec[14+2*self.num_actions:14+3*self.num_actions] = 0.0
 
         return noise_vec
 
@@ -99,6 +145,30 @@ class NoCVRobot(Go2Robot):
         observation 拼接与广播运算。
         """
         return self.commands[:, self.body_height_command_idx:self.body_height_command_idx+1]
+
+    def _get_jump_command_obs(self):
+        return torch.cat(
+            (
+                self._get_body_height_command() * self.commands_scale[3:4],
+                self.commands[:, self.jump_dx_command_idx:self.jump_dx_command_idx+1] * self.commands_scale[4:5],
+                self.commands[:, self.jump_dy_command_idx:self.jump_dy_command_idx+1] * self.commands_scale[5:6],
+                self.commands[:, self.jump_dz_command_idx:self.jump_dz_command_idx+1] * self.commands_scale[6:7],
+                self.commands[:, self.jump_trigger_command_idx:self.jump_trigger_command_idx+1] * self.commands_scale[7:8],
+            ),
+            dim=-1,
+        )
+
+    def _get_command_obs(self):
+        return torch.cat(
+            (
+                self.commands[:, :3] * self.commands_scale[:3],
+                self._get_jump_command_obs(),
+            ),
+            dim=-1,
+        )
+
+    def _get_jump_state_obs(self):
+        return torch.zeros(self.num_envs, 3, dtype=torch.float, device=self.device)
 
     def _get_low_height_terrain_mask(self, env_ids=None):
         """判断哪些 env 允许采样低高度档位。
@@ -180,26 +250,21 @@ class NoCVRobot(Go2Robot):
     def compute_observations(self):
         """构造 NoCV 的 actor obs 与 privileged obs。
 
-        相比主线 `Go2Robot`，唯一结构性变化是把显式 command 段从 3 维改成 4 维：
+        相比主线 `Go2Robot`，唯一结构性变化是把显式 command 段从 3 维改成 8 维：
         - 原有 3 维 locomotion command：`x / y / yaw`
         - 新增 1 维 body-height mode
+        - 额外预留 4 维 jump command（NoCV 中恒为 0）
 
         因此：
-        - actor obs: 45 -> 46
-        - privileged obs: 263 -> 264
+        - actor obs: 45 -> 50
+        - privileged obs: 263 -> 271
 
         这里刻意没有把第 4 维 `heading` 拼进 obs，
         以保持与主线 Go2 的观测风格一致：
         actor/critic 显式关注的是可直接用于控制的速度命令和高度档位，
         而不是内部 heading 目标本身。
         """
-        command_obs = torch.cat(
-            (
-                self.commands[:, :3] * self.commands_scale[:3],
-                self._get_body_height_command() * self.commands_scale[3:4],
-            ),
-            dim=-1,
-        )
+        command_obs = self._get_command_obs()
         self.obs_buf = torch.cat((
             self.base_ang_vel * self.obs_scales.ang_vel,
             self.projected_gravity,
@@ -227,6 +292,7 @@ class NoCVRobot(Go2Robot):
             self.torques / self.torque_limits,
             (self.last_dof_vel - self.dof_vel) / self.dt * 1e-4,
             heights,
+            self._get_jump_state_obs(),
         ), dim=-1)
 
         if self.add_noise:
@@ -250,8 +316,9 @@ class NoCVRobot(Go2Robot):
         if len(env_ids) == 0:
             return
 
-        # 每次重采样先回到默认档位，避免上一轮的低高度状态残留到不适用的 terrain 上。
+        # 每次重采样先回到默认档位，避免上一轮的特殊状态残留。
         self.commands[env_ids, self.body_height_command_idx] = self.cfg.commands.normal_body_height_command
+        self.commands[env_ids, self.jump_dx_command_idx:self.jump_trigger_command_idx+1] = self.cfg.commands.normal_jump_command
         eligible_mask = self._get_low_height_terrain_mask(env_ids)
         eligible_env_ids = env_ids[eligible_mask]
         if len(eligible_env_ids) == 0:

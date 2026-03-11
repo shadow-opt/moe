@@ -166,5 +166,5 @@ cython_debug/
 
 # logs
 logs
-
+isaacgym/
 *.html
