@@ -91,6 +91,20 @@ class JumpRobot(NoCVRobot):
     def _get_active_jump_mask(self):
         return self._get_jump_terrain_mask() & (self._get_jump_trigger_command().squeeze(1) > self.jump_command_threshold)
 
+    def _clear_jump_trigger_after_landing(self, env_ids):
+        """落地后关闭 jump trigger，让同一 episode 后半段进入恢复阶段。
+
+        这样可以避免：
+        1. tracking reward 在落地后一直被 jump mask 屏蔽；
+        2. 训练与部署出现“部署会回到 IDLE，但训练一直保持 jump mode”的语义偏差。
+
+        注意这里只清 `jump_trigger`，不立即清空 `jump_dx/jump_dy/jump_dz`，
+        因为本步还需要用它们结算一次性的 apex / landing reward。
+        """
+        if len(env_ids) == 0:
+            return
+        self.commands[env_ids, self.jump_trigger_command_idx] = self.cfg.commands.normal_jump_command
+
     def _get_jump_target_xy(self):
         return self.jump_origin_xy + self.commands[:, self.jump_dx_command_idx:self.jump_dy_command_idx+1]
 
@@ -208,6 +222,7 @@ class JumpRobot(NoCVRobot):
             self.has_jumped[newly_landed_mask] = True
             self.jump_landed_this_step[newly_landed_mask] = True
             self.commands[newly_landed_mask, self.body_height_command_idx] = self.cfg.commands.normal_body_height_command
+            self._clear_jump_trigger_after_landing(newly_landed_mask.nonzero(as_tuple=False).flatten())
 
     # ------------------------------------------------------------------
     # reset

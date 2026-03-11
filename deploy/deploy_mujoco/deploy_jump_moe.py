@@ -53,7 +53,43 @@ def validate_config(config):
             f"num_obs={num_obs} does not match expected observation size {expected_num_obs}"
         )
 
-    return cmd_scale, cmd_init
+    jump_limits = {
+        "dx": np.asarray(config.get("jump_dx_limits", [-0.35, 0.35]), dtype=np.float32),
+        "dy": np.asarray(config.get("jump_dy_limits", [-0.20, 0.20]), dtype=np.float32),
+        "dz": np.asarray(config.get("jump_dz_limits", [0.12, 0.42]), dtype=np.float32),
+        "takeoff_velocity_threshold": float(config.get("takeoff_velocity_threshold", 0.15)),
+        "takeoff_height_threshold": float(config.get("takeoff_height_threshold", 0.03)),
+        "landing_height_margin": float(config.get("landing_height_margin", 0.015)),
+        "min_jump_hold_s": float(config.get("min_jump_hold_s", 0.20)),
+    }
+    for name in ("dx", "dy", "dz"):
+        if jump_limits[name].shape != (2,):
+            raise ValueError(f"jump_{name}_limits must contain [min, max]")
+        if jump_limits[name][0] > jump_limits[name][1]:
+            raise ValueError(f"jump_{name}_limits must satisfy min <= max")
+
+    return cmd_scale, cmd_init, jump_limits
+
+
+def clip_with_warning(value, limits, name):
+    clipped = float(np.clip(value, limits[0], limits[1]))
+    if not np.isclose(clipped, value):
+        print(
+            f"[WARN] {name}={value:.3f} 超出训练范围 [{limits[0]:.3f}, {limits[1]:.3f}]，"
+            f"已裁剪为 {clipped:.3f}"
+        )
+    return clipped
+
+
+def set_walk_command(cmd, vx, vy, wz):
+    cmd[0] = vx
+    cmd[1] = vy
+    cmd[2] = wz
+    cmd[3] = 0.0
+    cmd[4] = 0.0
+    cmd[5] = 0.0
+    cmd[6] = 0.0
+    cmd[7] = 0.0
 
 
 def draw_moe_weights(screen, weights, width, height):
@@ -66,7 +102,6 @@ def draw_moe_weights(screen, weights, width, height):
     margin = 5
     bar_width = (width - 2 * margin) / num_experts
     max_bar_height = height - 2 * margin
-
     for i, w in enumerate(weights):
         w_clamped = max(0.0, min(1.0, w))
         bar_height = int(w_clamped * max_bar_height)
@@ -79,18 +114,33 @@ def draw_moe_weights(screen, weights, width, height):
     pygame.display.flip()
 
 
-def update_command_with_jump(cmd, joystick, max_cmd, button_state, jump_state, jump_args):
+def set_jump_command(cmd, jump_state):
+    cmd[0] = 0.0
+    cmd[1] = 0.0
+    cmd[2] = 0.0
+    cmd[3] = 1.0
+    cmd[4] = jump_state["dx"]
+    cmd[5] = jump_state["dy"]
+    cmd[6] = jump_state["dz"]
+    cmd[7] = 1.0
+
+
+def update_command_with_jump(cmd, joystick, max_cmd, button_state, jump_state, jump_args, robot_state):
     """更新手柄输入：摇杆控制速度，RB 键触发跳跃。
 
     cmd layout: [vx, vy, wz, body_height_mode, jump_dx, jump_dy, jump_dz, jump_trigger]
 
     跳跃状态机：
     - IDLE: 正常行走，RB 按下时进入 JUMPING
-    - JUMPING: 跳跃命令生效，cooldown 结束后回到 IDLE
+    - JUMPING: 跳跃命令生效，检测到起跳并回落后回到 IDLE
     """
     pygame.event.pump()
     dead_zone = 0.1
     now = time.time()
+    walk_vx = 0.0
+    walk_vy = 0.0
+    walk_wz = 0.0
+    rb_rising = False
 
     if joystick is not None:
         lx = joystick.get_axis(0)
@@ -99,60 +149,64 @@ def update_command_with_jump(cmd, joystick, max_cmd, button_state, jump_state, j
         if abs(lx) < dead_zone: lx = 0
         if abs(ly) < dead_zone: ly = 0
         if abs(rx) < dead_zone: rx = 0
+        walk_vx = -ly * max_cmd[0]
+        walk_vy = -lx * max_cmd[1]
+        walk_wz = -rx * max_cmd[2]
 
-        # RB (button 5) 触发跳跃
         rb_pressed = joystick.get_button(5)
         rb_rising = rb_pressed and not button_state.get("rb", False)
         button_state["rb"] = rb_pressed
-
-        if jump_state["mode"] == "IDLE":
-            # 正常行走模式
-            cmd[0] = -ly * max_cmd[0]
-            cmd[1] = -lx * max_cmd[1]
-            cmd[2] = -rx * max_cmd[2]
-            cmd[3] = 0.0  # normal height
-            cmd[4] = 0.0  # jump_dx
-            cmd[5] = 0.0  # jump_dy
-            cmd[6] = 0.0  # jump_dz
-            cmd[7] = 0.0  # jump_trigger
-
-            if rb_rising:
-                # 进入跳跃模式：捕获摇杆方向作为 dx/dy
-                jump_dx = -ly * jump_args["dx_range"]
-                jump_dy = -lx * jump_args["dy_range"]
-                jump_dz = jump_args["dz"]
-
-                cmd[0] = 0.0  # 跳跃时清零速度命令
-                cmd[1] = 0.0
-                cmd[2] = 0.0
-                cmd[3] = 1.0  # low height (jump prep)
-                cmd[4] = jump_dx
-                cmd[5] = jump_dy
-                cmd[6] = jump_dz
-                cmd[7] = 1.0  # jump trigger
-
-                jump_state["mode"] = "JUMPING"
-                jump_state["trigger_time"] = now
-                jump_state["dx"] = jump_dx
-                jump_state["dy"] = jump_dy
-                jump_state["dz"] = jump_dz
-
-        elif jump_state["mode"] == "JUMPING":
-            # 跳跃模式：保持跳跃命令，忽略摇杆输入
-            cmd[0] = 0.0
-            cmd[1] = 0.0
-            cmd[2] = 0.0
-            cmd[3] = 1.0
-            cmd[4] = jump_state["dx"]
-            cmd[5] = jump_state["dy"]
-            cmd[6] = jump_state["dz"]
-            cmd[7] = 1.0
-
-            elapsed = now - jump_state["trigger_time"]
-            if elapsed >= jump_args["cooldown"]:
-                jump_state["mode"] = "IDLE"
     else:
-        cmd[:3] = 0.0
+        button_state["rb"] = False
+
+    if jump_state["mode"] == "IDLE":
+        set_walk_command(cmd, walk_vx, walk_vy, walk_wz)
+        if rb_rising:
+            jump_dx = clip_with_warning(
+                walk_vx / max(max_cmd[0], 1e-6) * jump_args["dx_limit"],
+                jump_args["dx_limits"],
+                "jump_dx",
+            )
+            jump_dy = clip_with_warning(
+                walk_vy / max(max_cmd[1], 1e-6) * jump_args["dy_limit"],
+                jump_args["dy_limits"],
+                "jump_dy",
+            )
+            jump_dz = clip_with_warning(jump_args["dz"], jump_args["dz_limits"], "jump_dz")
+
+            jump_state["mode"] = "JUMPING"
+            jump_state["trigger_time"] = now
+            jump_state["dx"] = jump_dx
+            jump_state["dy"] = jump_dy
+            jump_state["dz"] = jump_dz
+            jump_state["has_taken_off"] = False
+            jump_state["launch_height"] = robot_state["base_height"] if robot_state is not None else 0.0
+            set_jump_command(cmd, jump_state)
+    elif jump_state["mode"] == "JUMPING":
+        set_jump_command(cmd, jump_state)
+
+        elapsed = now - jump_state["trigger_time"]
+        if robot_state is not None:
+            if (not jump_state["has_taken_off"]) and (
+                robot_state["base_lin_vel_z"] >= jump_args["takeoff_velocity_threshold"]
+                or robot_state["base_height"] >= jump_state["launch_height"] + jump_args["takeoff_height_threshold"]
+            ):
+                jump_state["has_taken_off"] = True
+
+            landed = (
+                jump_state["has_taken_off"]
+                and elapsed >= jump_args["min_jump_hold_s"]
+                and robot_state["base_height"] <= jump_state["launch_height"] + jump_args["landing_height_margin"]
+                and robot_state["base_lin_vel_z"] <= 0.0
+            )
+        else:
+            landed = False
+
+        timed_out = elapsed >= jump_args["timeout"]
+        if landed or timed_out:
+            jump_state["mode"] = "IDLE"
+            jump_state["has_taken_off"] = False
+            set_walk_command(cmd, walk_vx, walk_vy, walk_wz)
 
     return cmd
 
@@ -171,13 +225,6 @@ if __name__ == "__main__":
     save_video = args.save_video
     visualize_moe_weights = args.visualize_moe_weights
     config_file = args.config
-
-    jump_args = {
-        "dz": args.jump_dz,
-        "dx_range": args.jump_dx_range,
-        "dy_range": args.jump_dy_range,
-        "cooldown": args.jump_cooldown,
-    }
 
     # Pygame 初始化
     pygame.init()
@@ -220,7 +267,7 @@ if __name__ == "__main__":
         dof_pos_scale = config["dof_pos_scale"]
         dof_vel_scale = config["dof_vel_scale"]
         action_scale = config["action_scale"]
-        cmd_scale, cmd = validate_config(config)
+        cmd_scale, cmd, jump_limits = validate_config(config)
 
         num_actions = config["num_actions"]
         num_obs = config["num_obs"]
@@ -231,6 +278,20 @@ if __name__ == "__main__":
             model_joint_names = config["model_joint_names"]
             idx_model2mj = [model_joint_names.index(joint) for joint in mujoco_joint_names]
             idx_mj2model = [mujoco_joint_names.index(joint) for joint in model_joint_names]
+
+    jump_args = {
+        "dz": clip_with_warning(args.jump_dz, jump_limits["dz"], "jump_dz"),
+        "dx_limit": float(args.jump_dx_range),
+        "dy_limit": float(args.jump_dy_range),
+        "dx_limits": jump_limits["dx"],
+        "dy_limits": jump_limits["dy"],
+        "dz_limits": jump_limits["dz"],
+        "timeout": float(args.jump_cooldown),
+        "takeoff_velocity_threshold": jump_limits["takeoff_velocity_threshold"],
+        "takeoff_height_threshold": jump_limits["takeoff_height_threshold"],
+        "landing_height_margin": jump_limits["landing_height_margin"],
+        "min_jump_hold_s": jump_limits["min_jump_hold_s"],
+    }
 
     if not os.path.exists(policy_path):
         raise FileNotFoundError(
@@ -248,8 +309,8 @@ if __name__ == "__main__":
     video_filename = f"{model_name}_{cmd_str}.mp4"
     video_path = os.path.join(video_save_dir, video_filename)
     print(f"Video recording will be saved to: {video_path}")
-    print(f"Jump params: dz={jump_args['dz']}, dx_range={jump_args['dx_range']}, "
-          f"dy_range={jump_args['dy_range']}, cooldown={jump_args['cooldown']}s")
+    print(f"Jump params: dz={jump_args['dz']}, dx_limit={jump_args['dx_limit']}, "
+          f"dy_limit={jump_args['dy_limit']}, timeout={jump_args['timeout']}s")
 
     # define context variables
     action = np.zeros(num_actions, dtype=np.float32)
@@ -257,7 +318,15 @@ if __name__ == "__main__":
     target_dof_pos = default_angles.copy()
     obs = np.zeros(num_obs, dtype=np.float32)
     button_state = {}
-    jump_state = {"mode": "IDLE", "trigger_time": 0.0, "dx": 0.0, "dy": 0.0, "dz": 0.0}
+    jump_state = {
+        "mode": "IDLE",
+        "trigger_time": 0.0,
+        "dx": 0.0,
+        "dy": 0.0,
+        "dz": 0.0,
+        "has_taken_off": False,
+        "launch_height": 0.0,
+    }
 
     counter = 0
 
@@ -294,12 +363,24 @@ if __name__ == "__main__":
             step_start = time.time()
 
             if use_joystick and counter % control_decimation == 0:
-                cmd = update_command_with_jump(cmd, joystick, config["max_cmd"], button_state, jump_state, jump_args)
+                robot_state = {
+                    "base_height": float(d.qpos[2]),
+                    "base_lin_vel_z": float(d.qvel[2]),
+                }
+                cmd = update_command_with_jump(
+                    cmd,
+                    joystick,
+                    config["max_cmd"],
+                    button_state,
+                    jump_state,
+                    jump_args,
+                    robot_state,
+                )
                 mode_label = jump_state["mode"]
                 if mode_label == "JUMPING":
                     print(
                         f"[{mode_label:7s}] dx={jump_state['dx']:.2f}, dy={jump_state['dy']:.2f}, "
-                        f"dz={jump_state['dz']:.2f}",
+                        f"dz={jump_state['dz']:.2f}, taken_off={int(jump_state['has_taken_off'])}",
                         end='\r'
                     )
                 else:

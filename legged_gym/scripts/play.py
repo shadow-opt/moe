@@ -64,13 +64,25 @@ def play(args):
         actions = policy(obs.detach())
 
         if FIX_COMMAND:
-            # 这里直接把每个 env 的命令固定成“向前走”。
-            # 注意：当前只覆写了前 3 维（x / y / yaw）。
-            # 如果以后把高度、跳跃等新命令显式加入 `env.commands` 并送入 observation，
-            # 这里也必须同步补上对应维度，否则测试时看到的行为会和训练设想不一致。
-            env.commands[:, 0] = 1.0
-            env.commands[:, 1] = 0.0
-            env.commands[:, 2] = 0.0
+            # `jump` 任务需要同时固定 jump 相关 command，
+            # 否则这里只改前三维速度命令，无法验证“可控跳高/跳远”。
+            if args.task == "jump" and env.commands.shape[1] >= 9:
+                jump_dx_mid = 0.5 * (env_cfg.commands.ranges.jump_dx[0] + env_cfg.commands.ranges.jump_dx[1])
+                jump_dy_mid = 0.0
+                jump_dz_mid = 0.5 * (env_cfg.commands.ranges.jump_dz[0] + env_cfg.commands.ranges.jump_dz[1])
+                env.commands[:, 0] = 0.0
+                env.commands[:, 1] = 0.0
+                env.commands[:, 2] = 0.0
+                env.commands[:, env.body_height_command_idx] = env_cfg.commands.low_body_height_command
+                env.commands[:, env.jump_dx_command_idx] = jump_dx_mid
+                env.commands[:, env.jump_dy_command_idx] = jump_dy_mid
+                env.commands[:, env.jump_dz_command_idx] = jump_dz_mid
+                env.commands[:, env.jump_trigger_command_idx] = env_cfg.commands.active_jump_command
+            else:
+                # 这里直接把每个 env 的命令固定成“向前走”。
+                env.commands[:, 0] = 1.0
+                env.commands[:, 1] = 0.0
+                env.commands[:, 2] = 0.0
 
         obs, _, rews, dones, infos = env.step(actions.detach())
 

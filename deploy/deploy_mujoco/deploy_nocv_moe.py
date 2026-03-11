@@ -63,6 +63,9 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
         button_state["a"] = a_pressed
     else:
         command_obs[:3] = 0.0
+    # NoCV 部署沿用 jump 兼容的 8 维 command obs，
+    # 但后 4 维在该任务中应始终为 0，避免配置或上一次状态残留误导策略。
+    command_obs[4:] = 0.0
     return command_obs
 
 def validate_config(config):
@@ -177,7 +180,7 @@ if __name__ == "__main__":
         num_actions = config["num_actions"]
         num_obs = config["num_obs"]
         if args.body_height_mode is not None:
-            cmd[3] = np.float32(args.body_height_mode)
+            cmd[3] = np.float32(np.clip(args.body_height_mode, 0.0, 1.0))
 
         idx_model2mj = idx_mj2model = list(range(num_actions))
         if 'mujoco_joint_names' in config and 'model_joint_names' in config:

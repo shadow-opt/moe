@@ -1,4 +1,5 @@
-policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/jump/jump_moe_cts.pt"
+# 默认读取 `play.py` / 导出链路生成的 JIT 策略。
+policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/jump_moe_cts/exported/policies/policy.pt"
 xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/qianxihouzhouzu/urdf/mjmodel.xml"
 
 # Total simulation time
@@ -24,6 +25,13 @@ cmd_scale: [2.0, 2.0, 0.25, 1.0, 1.0, 1.0, 1.0, 1.0]
 num_actions: 12
 num_obs: 50
 max_cmd: [2.0, 1.0, 2.5]
+jump_dx_limits: [-0.35, 0.35]
+jump_dy_limits: [-0.20, 0.20]
+jump_dz_limits: [0.12, 0.42]
+takeoff_velocity_threshold: 0.15
+takeoff_height_threshold: 0.03
+landing_height_margin: 0.015
+min_jump_hold_s: 0.20
 
 # command obs layout: [vx, vy, wz, body_height_mode, jump_dx, jump_dy, jump_dz, jump_trigger]
 cmd_init: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

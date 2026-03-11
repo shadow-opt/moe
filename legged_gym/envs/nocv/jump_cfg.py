@@ -12,6 +12,11 @@ class JUMPCfg(NOCVCfg):
 
 	因此内部 command 语义变为：
 	`[lin_vel_x, lin_vel_y, ang_vel_yaw, heading, body_height_mode, jump_dx, jump_dy, jump_dz, jump_trigger]`
+
+	当前设计约束：
+	1. jump 任务只在 flat tile（terrain id = 8）上训练；
+	2. 每个 episode 只执行一次 jump command；
+	3. `jump_dx / jump_dy / jump_dz` 分别控制跳远、侧向落点和跳高目标。
 	"""
 
 	class env(NOCVCfg.env):
@@ -28,7 +33,8 @@ class JUMPCfg(NOCVCfg):
 		jump_land_ang_vel_threshold = 4.0 # rad/s, 落地后机身旋转失稳
 
 	class terrain(NOCVCfg.terrain):
-		# jump 任务先只在 flat 上训练，避免把跳跃信号和复杂地形适应同时耦合。
+		# 只保留 flat tile。仍沿用 trimesh + terrain id 语义，
+		# 这样 `jump_terrain_ids` / `low_height_terrain_ids` 的门控逻辑无需改动。
 		terrain_proportions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
 	class commands(NOCVCfg.commands):
@@ -37,8 +43,9 @@ class JUMPCfg(NOCVCfg):
 		dynamic_resample_commands = False
 		curriculum = False
 		command_range_curriculum = []
-		# jump 任务下，普通 NoCV 的低高度随机采样关闭；
-		# 低姿态仅由 jump 逻辑在需要时显式打开。
+
+		# jump 任务不再复用 NoCV 的随机低姿态子任务；
+		# 蹲伏准备完全由 jump trigger 显式驱动。
 		low_height_command_prob = 0.0
 		low_height_terrain_ids = [8]
 
@@ -58,7 +65,7 @@ class JUMPCfg(NOCVCfg):
 		class ranges(NOCVCfg.commands.ranges):
 			jump_dx = [-0.35, 0.35]
 			jump_dy = [-0.20, 0.20]
-			jump_dz = [0.12, 0.28]
+			jump_dz = [0.12, 0.42]
 			jump_trigger = [0.0, 1.0]
 
 	class rewards(NOCVCfg.rewards):
@@ -66,6 +73,11 @@ class JUMPCfg(NOCVCfg):
 		jump_land_sigma = 0.20
 
 		class scales(NOCVCfg.rewards.scales):
+			# jump 模式下，垂向速度 / 常规高度 / feet regulation 会与起跳和腾空目标直接对冲，
+			# 因此在 jump 专用任务中关闭，改由 jump 专属奖励与落地稳定性终止约束承担。
+			lin_vel_z = 0.0
+			correct_base_height = 0.0
+			feet_regulation = 0.0
 			jump_takeoff_vel = 1.5
 			jump_apex_height = 2.0
 			jump_land_target = 3.0
