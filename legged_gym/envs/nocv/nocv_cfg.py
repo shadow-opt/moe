@@ -23,7 +23,7 @@ class NOCVCfg(GO2Cfg):
         foot_name = 'foot'
         terminate_after_contacts_on = ["base", "trunk"]
         penalize_contacts_on = ["thigh", "calf", "hip"]
-        self_collisions = 0
+        self_collisions = 1
         flip_visual_attachments = False
 
     class env(GO2Cfg.env):
