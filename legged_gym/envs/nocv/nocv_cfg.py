@@ -79,5 +79,5 @@ class NOCVCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = ''
         experiment_name = 'nocv_moe_cts'
-        max_iterations = 150000
+        max_iterations = 130000
         save_interval = 500
