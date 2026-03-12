@@ -38,7 +38,7 @@ class NOCVCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 因为低高度档位只在 slope / rough_slope / flat 上启用。
-        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.2, 0.15, 0.1, 0.05, 0.1]
+        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.2, 0.2, 0.0, 0.0, 0.2]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stepping_stones, gap, flat]
 
     class commands(GO2Cfg.commands):
@@ -67,14 +67,14 @@ class NOCVCfg(GO2Cfg):
         normal_jump_command = 0.0
         active_jump_command = 1.0
         # 对允许的地形，重采样 command 时有多大概率切到低高度档位。
-        low_height_command_prob = 0.35
+        low_height_command_prob = 0.4
         # 仅在这些 terrain id 上允许采样低高度档位：
         # 1 = slope, 2 = rough_slope, 8 = flat
         low_height_terrain_ids = [1, 2, 8]  # slope, rough_slope, flat
         # 当采到低高度档位时，对速度命令做额外缩放：
         # [lin_vel_x, lin_vel_y, ang_vel_yaw]
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
-        low_height_command_velocity_scale = [0.7, 0.7, 0.8]
+        low_height_command_velocity_scale = [0.5, 0.5, 0.7]
 
         class ranges(GO2Cfg.commands.ranges):
             jump_dx = [0.0, 0.0]
@@ -85,7 +85,7 @@ class NOCVCfg(GO2Cfg):
     class rewards(GO2Cfg.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.20
+        low_base_height_target = 0.22
 
 
 class NOCVCfgMoECTS(GO2CfgMoECTS):
