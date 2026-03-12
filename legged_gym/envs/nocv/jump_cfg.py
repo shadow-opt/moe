@@ -91,7 +91,7 @@ class JUMPCfg(NOCVCfg):
 
 class JUMPCfgMoECTS(NOCVCfgMoECTS):
 	class runner(NOCVCfgMoECTS.runner):
-		run_name = ''
-		experiment_name = 'jump_moe_cts'
-		max_iterations = 130000
+		run_name = 'jump'
+		experiment_name = 'nocv_moe_cts'
+		max_iterations = 150000
 		save_interval = 500

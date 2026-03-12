@@ -1,4 +1,4 @@
-from legged_gym.envs.go2.go2_config import GO2Cfg, GO2CfgMoECTS
+from legged_gym.envs.go2.go2_config import GO2Cfg, GO2CfgMoECTS, GO2CfgCTS
 
 
 class NOCVCfg(GO2Cfg):
@@ -99,3 +99,4 @@ class NOCVCfgMoECTS(GO2CfgMoECTS):
         experiment_name = 'nocv_moe_cts'
         max_iterations = 130000
         save_interval = 500
+
