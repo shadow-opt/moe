@@ -66,7 +66,7 @@ def play(args):
         if FIX_COMMAND:
             # `jump` 任务需要同时固定 jump 相关 command，
             # 否则这里只改前三维速度命令，无法验证“可控跳高/跳远”。
-            if args.task == "jump" and env.commands.shape[1] >= 9:
+            if args.task in ("jump", "j_cts") and env.commands.shape[1] >= 9:
                 jump_dx_mid = 0.5 * (env_cfg.commands.ranges.jump_dx[0] + env_cfg.commands.ranges.jump_dx[1])
                 jump_dy_mid = 0.0
                 jump_dz_mid = 0.5 * (env_cfg.commands.ranges.jump_dz[0] + env_cfg.commands.ranges.jump_dz[1])
