@@ -22,7 +22,7 @@ class JUMPCfg(NOCVCfg):
 	class env(NOCVCfg.env):
 		num_observations = 50
 		num_privileged_obs = 271
-		episode_length_s = 6.0
+		episode_length_s = 8.0
 		reset_height = 0.18
 
 		# ---- 落地姿态终止阈值 ----
@@ -39,7 +39,7 @@ class JUMPCfg(NOCVCfg):
 
 	class commands(NOCVCfg.commands):
 		num_commands = 9
-		resampling_time = 10.0
+		resampling_time = 2.5
 		dynamic_resample_commands = False
 		curriculum = False
 		command_range_curriculum = []
@@ -57,41 +57,55 @@ class JUMPCfg(NOCVCfg):
 
 		jump_command_obs_scale = [1.0, 1.0, 1.0, 1.0]
 		jump_command_threshold = 0.5
-		jump_command_prob = 1.0
+		jump_command_prob = 0.7
 		normal_jump_command = 0.0
 		active_jump_command = 1.0
-		jump_locomotion_command_scale = [0.0, 0.0, 0.0]
+		jump_locomotion_command_scale = [0.2, 0.2, 0.2]
+		jump_phase_cycle_time = 0.70
 
 		class ranges(NOCVCfg.commands.ranges):
 			jump_dx = [-0.35, 0.35]
 			jump_dy = [-0.20, 0.20]
-			jump_dz = [0.12, 0.42]
+			jump_dz = [0.12, 0.25]
 			jump_trigger = [0.0, 1.0]
 
 	class rewards(NOCVCfg.rewards):
 		jump_apex_sigma = 0.04
 		jump_land_sigma = 0.20
+		jump_phase_contact_sigma = 0.08
+		jump_phase_takeoff_portion = 0.30
+		jump_phase_airborne_portion = 0.45
 		# 落地瞬间希望前后足不要拉得太开。
 		# 这里约束的是 base 坐标系下“前足中心 - 后足中心”的 x 向距离上限。
 		jump_land_stance_length_max = 0.24
 		jump_land_stance_length_sigma = 0.02
 
 		class scales(NOCVCfg.rewards.scales):
-			# jump 模式下，垂向速度 / 常规高度 / feet regulation 会与起跳和腾空目标直接对冲，
-			# 因此在 jump 专用任务中关闭，改由 jump 专属奖励与落地稳定性终止约束承担。
+			# 恢复基线追踪能力，不再为了跳跃屏蔽速度控制
+			tracking_lin_vel = 1.5
+			tracking_ang_vel = 1.0
+			# 跳跃期间关闭垂直速度和基础高度约束，避免冲突
 			lin_vel_z = 0.0
 			correct_base_height = 0.0
 			feet_regulation = 0.0
-			jump_takeoff_vel = 1.5
-			jump_apex_height = 2.0
-			jump_land_target = 3.0
-			jump_land_compact = 0.8
-			jump_flight = 0.5
+			
+			# 删除所有稀疏(单步)结算的奖励
+			jump_takeoff_vel = 0.0
+			jump_apex_height = 0.0
+			jump_land_target = 0.0
+			jump_land_compact = 0.0
+			jump_phase_contact = 0.0
+			
+			# 启用强引导 Dense Shaping
+			jump_flight = 1.0         # 鼓励腾空
+			jump_pattern = 2.0        # 核心：全足时序同步
+			jump_swing_clearance = 0.5 # 核心：摆动期抬腿
+			jump_target_vel = 1.0
 
 
 class JUMPCfgMoECTS(NOCVCfgMoECTS):
 	class runner(NOCVCfgMoECTS.runner):
 		run_name = 'jump'
-		experiment_name = 'nocv_moe_cts'
+		experiment_name = 'jump_moe_cts'
 		max_iterations = 150000
 		save_interval = 500

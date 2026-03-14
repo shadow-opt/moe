@@ -43,6 +43,7 @@ class JumpRobot(NoCVRobot):
             device=self.device,
             requires_grad=False,
         )
+        self.jump_phase_cycle_time = float(cfg_commands.jump_phase_cycle_time)
 
         # 缓存 jump_terrain_ids，避免 _get_jump_terrain_mask 每步重建
         self._jump_terrain_ids = torch.tensor(
@@ -66,6 +67,7 @@ class JumpRobot(NoCVRobot):
         self.landing_poses = torch.zeros(self.num_envs, 2, dtype=torch.float, device=self.device, requires_grad=False)
         self.max_height = torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
         self.jump_landed_this_step = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device, requires_grad=False)
+        self.jump_elapsed_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device, requires_grad=False)
 
     # ------------------------------------------------------------------
     # jump trigger / terrain mask
@@ -108,6 +110,11 @@ class JumpRobot(NoCVRobot):
 
     def _get_jump_target_xy(self):
         return self.jump_origin_xy + self.commands[:, self.jump_dx_command_idx:self.jump_dy_command_idx+1]
+
+    def _get_jump_phase(self):
+        elapsed_s = self.jump_elapsed_steps.float() * self.dt
+        phase = torch.clamp(elapsed_s / max(self.jump_phase_cycle_time, self.dt), 0.0, 1.0)
+        return phase
 
     # ------------------------------------------------------------------
     # observation（仅覆写 _get_jump_state_obs，其余继承 NoCVRobot）
@@ -195,7 +202,11 @@ class JumpRobot(NoCVRobot):
             self.jump_start_height[new_jump_mask] = self.root_states[new_jump_mask, 2]
             self.max_height[new_jump_mask] = self.root_states[new_jump_mask, 2]
             self.jump_initialized[new_jump_mask] = True
+            self.jump_elapsed_steps[new_jump_mask] = 0
             self.commands[new_jump_mask, self.body_height_command_idx] = self.cfg.commands.low_body_height_command
+
+        progressing_mask = self.jump_initialized & ~self.has_jumped
+        self.jump_elapsed_steps[progressing_mask] += 1
 
         # ---- 脚接触检测（含单步滤波） ----
         contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
@@ -243,6 +254,7 @@ class JumpRobot(NoCVRobot):
         self.landing_poses[env_ids] = self.root_states[env_ids, :2]
         self.max_height[env_ids] = self.root_states[env_ids, 2]
         self.jump_landed_this_step[env_ids] = False
+        self.jump_elapsed_steps[env_ids] = 0
 
     # ------------------------------------------------------------------
     # termination
@@ -275,73 +287,94 @@ class JumpRobot(NoCVRobot):
             ang_vel_fail = torch.norm(self.base_ang_vel, dim=1) > cfg_env.jump_land_ang_vel_threshold
             self.reset_buf |= landed & (pitch_fail | roll_fail | ang_vel_fail)
 
+
     # ------------------------------------------------------------------
-    # reward（tracking 类在跳跃模式下置零）
+    # reward (tracking 类保留基类先验，不再在跳跃时强制置零)
+    # ------------------------------------------------------------------
+
+    def _get_jump_stance_mask(self):
+        phase = self._get_jump_phase()
+        cfg_rew = self.cfg.rewards
+        takeoff_end = cfg_rew.jump_phase_takeoff_portion
+        airborne_end = min(1.0, takeoff_end + cfg_rew.jump_phase_airborne_portion)
+        # stance: 在腾空部分之前或之后，期望四脚触地
+        return (phase < takeoff_end) | (phase >= airborne_end)
+
+    def _reward_jump_pattern(self):
+        """严格的全足同步 + 阶段匹配奖励 (借鉴参考仓库的强周期逻辑)"""
+        active = self._get_active_jump_mask() & self.jump_initialized & ~self.has_jumped
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
+            
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.0
+        stance_mask = self._get_jump_stance_mask()
+        
+        # 4条腿的触地状态都必须与 stance_mask 一致
+        JUMP = (contact[:, 0] == contact[:, 1]) &                (contact[:, 1] == contact[:, 2]) &                (contact[:, 2] == contact[:, 3]) &                (contact[:, 3] == stance_mask)
+               
+        return JUMP.float() * active.float()
+
+    def _reward_jump_swing_clearance(self):
+        """鼓励腾空期/摆动期的相对高度，辅助跨越"""
+        active = self._get_active_jump_mask() & self.jump_initialized & ~self.has_jumped
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
+            
+        # 简单估计 feet 相关高度
+        feet_height = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 2] - 0.02
+        swing_mask = ~self._get_jump_stance_mask() # True 表示此时应该腾空
+        
+        # 限制单次奖励的最大值
+        rew_pos = torch.clip(feet_height, min=0.0, max=0.05)
+        rew = torch.sum(rew_pos * swing_mask.unsqueeze(1).float(), dim=1)
+        return rew * active.float()
+
+    def _reward_jump_flight(self):
+        """空中每步给予常量奖励，鼓励拉长实际飞行时间"""
+        mask = self._get_active_jump_mask() & self.was_in_flight & ~self.has_jumped
+        return mask.float()
+
+    # ------------------------------------------------------------------
+    # override tracking rewards during jump
     # ------------------------------------------------------------------
 
     def _reward_tracking_lin_vel(self):
+        """跳跃期间给予满分线速度追踪奖励，避免正常行走时的跟踪目标惩罚跳跃动量，也不鼓励为了恢复得分而短跳。"""
         rew = super()._reward_tracking_lin_vel()
-        rew[self._get_active_jump_mask()] = 0.0
-        return rew
+        active = self._get_active_jump_mask()
+        return torch.where(active, torch.ones_like(rew), rew)
 
     def _reward_tracking_ang_vel(self):
+        """跳跃期间给予满分角速度追踪奖励。"""
         rew = super()._reward_tracking_ang_vel()
-        rew[self._get_active_jump_mask()] = 0.0
-        return rew
+        active = self._get_active_jump_mask()
+        return torch.where(active, torch.ones_like(rew), rew)
 
-    # ---- jump 专属奖励 ----
+    def _reward_ang_vel_xy(self):
+        """跳跃期间屏蔽机身俯仰/横滚角速度惩罚，允许跳跃必须的姿态变化。"""
+        rew = super()._reward_ang_vel_xy()
+        active = self._get_active_jump_mask()
+        return rew * (~active).float()
 
-    def _reward_jump_takeoff_vel(self):
-        """起飞前鼓励向上的 base 线速度。"""
-        mask = self._get_active_jump_mask() & ~self.was_in_flight
-        return torch.clamp(self.base_lin_vel[:, 2], min=0.0) * mask.float()
+    def _reward_jump_target_vel(self):
+        """将摇杆对落点(dx/dy/dz)的期望，转化为起跳前和腾空初期的 Dense 速度追踪引导"""
+        active = self._get_active_jump_mask() & self.jump_initialized & ~self.has_jumped
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
 
-    def _reward_jump_apex_height(self):
-        """落地一次性结算：max_height 与目标 apex 的高斯匹配。
+        # 腾空时间使用与步态匹配的值
+        air_time = self.cfg.commands.jump_phase_cycle_time * self.cfg.rewards.jump_phase_airborne_portion
+        
+        # 换算所需的理想空间速度速度 (v = d / t)
+        target_vx = self.commands[:, self.jump_dx_command_idx] / air_time
+        target_vy = self.commands[:, self.jump_dy_command_idx] / air_time
+        # 垂直向上的理想起跳速度 (v_z = sqrt(2gh))
+        target_vz = torch.sqrt(2.0 * 9.81 * torch.maximum(self.commands[:, self.jump_dz_command_idx], torch.tensor(0.05, device=self.device)))
 
-        目标 apex = jump_start_height + jump_dz。
-        """
-        mask = self.jump_landed_this_step
-        target_height = self.jump_start_height + self.commands[:, self.jump_dz_command_idx]
-        height_error = torch.square(self.max_height - target_height)
-        return torch.exp(-height_error / self.cfg.rewards.jump_apex_sigma) * mask.float()
+        # 计算当前线速度与理想起跳速度的均方差
+        vel_err = torch.square(self.base_lin_vel[:, 0] - target_vx) + \
+                  torch.square(self.base_lin_vel[:, 1] - target_vy) + \
+                  torch.square(self.base_lin_vel[:, 2] - target_vz) * 0.5  # z 轴容忍度略大一点
+        
+        return torch.exp(-vel_err / 2.0) * active.float()
 
-    def _reward_jump_land_target(self):
-        """落地一次性结算：着地点与目标 xy 的高斯匹配。"""
-        mask = self.jump_landed_this_step
-        landing_error = torch.norm(self.landing_poses - self._get_jump_target_xy(), dim=1)
-        return torch.exp(-landing_error / self.cfg.rewards.jump_land_sigma) * mask.float()
-
-    def _reward_jump_land_compact(self):
-        """落地一次性结算：鼓励前后足在 x 方向更紧凑。
-
-        计算方式：
-        1. 将四脚位置转换到 base 坐标系；
-        2. 取前足中心与后足中心的 x 向距离作为 stance length；
-        3. 仅当该距离超过阈值时才衰减奖励，避免过度干预正常落地稳定性。
-        """
-        mask = self.jump_landed_this_step
-        if not mask.any():
-            return mask.float()
-
-        feet_pos_world = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
-        feet_pos_relative_world = feet_pos_world - self.root_states[:, 0:3].unsqueeze(1)
-        feet_pos_local = quat_rotate_inverse(
-            self.base_quat.repeat_interleave(len(self.feet_indices), dim=0),
-            feet_pos_relative_world.reshape(-1, 3),
-        ).reshape(self.num_envs, len(self.feet_indices), 3)
-
-        # feet_indices 顺序约定为 [FL, FR, RL, RR]
-        front_center_x = feet_pos_local[:, 0:2, 0].mean(dim=1)
-        rear_center_x = feet_pos_local[:, 2:4, 0].mean(dim=1)
-        stance_length = torch.abs(front_center_x - rear_center_x)
-
-        max_length = self.cfg.rewards.jump_land_stance_length_max
-        sigma = self.cfg.rewards.jump_land_stance_length_sigma
-        excess = torch.clamp(stance_length - max_length, min=0.0)
-        return torch.exp(-torch.square(excess) / sigma) * mask.float()
-
-    def _reward_jump_flight(self):
-        """空中每步给予常量奖励，鼓励维持飞行时间。"""
-        mask = self._get_active_jump_mask() & self.was_in_flight & ~self.has_jumped
-        return mask.float()

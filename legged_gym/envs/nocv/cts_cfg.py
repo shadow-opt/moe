@@ -86,6 +86,6 @@ class JUMPCfgCTS(NOCVCfgCTS):
 
     class runner(NOCVCfgCTS.runner):
         run_name = 'jump'
-        experiment_name = 'nocv_cts'
+        experiment_name = 'jump_cts'
         max_iterations = 30000
         save_interval = 1000

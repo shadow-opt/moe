@@ -281,8 +281,8 @@ if __name__ == "__main__":
 
     jump_args = {
         "dz": clip_with_warning(args.jump_dz, jump_limits["dz"], "jump_dz"),
-        "dx_limit": float(args.jump_dx_range),
-        "dy_limit": float(args.jump_dy_range),
+        "dx_limit": clip_with_warning(args.jump_dx_range, jump_limits["dx"], "jump_dx_range"),
+        "dy_limit": clip_with_warning(args.jump_dy_range, jump_limits["dy"], "jump_dy_range"),
         "dx_limits": jump_limits["dx"],
         "dy_limits": jump_limits["dy"],
         "dz_limits": jump_limits["dz"],
