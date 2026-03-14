@@ -72,6 +72,10 @@ class JUMPCfg(NOCVCfg):
 	class rewards(NOCVCfg.rewards):
 		jump_apex_sigma = 0.04
 		jump_land_sigma = 0.20
+		jump_land_height_gate = 0.42
+		jump_land_attitude_gate = 0.60
+		jump_flight_foot_z_target = -0.20
+		jump_flight_foot_z_sigma = 0.02
 		jump_phase_contact_sigma = 0.08
 		jump_phase_takeoff_portion = 0.30
 		jump_phase_airborne_portion = 0.45
@@ -101,6 +105,12 @@ class JUMPCfg(NOCVCfg):
 			jump_pattern = 2.0        # 核心：全足时序同步
 			jump_swing_clearance = 0.5 # 核心：摆动期抬腿
 			jump_target_vel = 1.0
+
+			# 引入 spring-jump 风格约束
+			foot_clearance = 1.0
+			line_z = 0.8
+			dof_hip_pos = -0.3
+			land_pos = 1.5
 
 
 class JUMPCfgMoECTS(NOCVCfgMoECTS):

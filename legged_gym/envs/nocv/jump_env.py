@@ -334,6 +334,69 @@ class JumpRobot(NoCVRobot):
         mask = self._get_active_jump_mask() & self.was_in_flight & ~self.has_jumped
         return mask.float()
 
+    def _reward_foot_clearance(self):
+        """飞行阶段约束足端在机身坐标系下收腿，避免空中拖腿。"""
+        active = self._get_active_jump_mask() & self.was_in_flight & ~self.has_jumped
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
+
+        rb_states = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)
+        feet_pos_world = rb_states[:, self.feet_indices, :3]
+        base_pos = self.root_states[:, :3].unsqueeze(1)
+        feet_pos_rel_world = feet_pos_world - base_pos
+
+        n_feet = len(self.feet_indices)
+        base_quat = self.root_states[:, 3:7].unsqueeze(1).expand(-1, n_feet, -1)
+        feet_pos_body = quat_rotate_inverse(
+            base_quat.reshape(-1, 4),
+            feet_pos_rel_world.reshape(-1, 3),
+        ).view(self.num_envs, n_feet, 3)
+
+        target_z = self.cfg.rewards.jump_flight_foot_z_target
+        sigma = self.cfg.rewards.jump_flight_foot_z_sigma
+        z_err = torch.square(feet_pos_body[:, :, 2] - target_z)
+        mean_err = torch.mean(z_err, dim=1)
+        return torch.exp(-mean_err / sigma) * active.float()
+
+    def _reward_line_z(self):
+        """起跳阶段显式鼓励向上速度，提升爆发起跳能力。"""
+        phase = self._get_jump_phase()
+        takeoff_phase = phase < self.cfg.rewards.jump_phase_takeoff_portion
+        active = self._get_active_jump_mask() & self.jump_initialized & ~self.has_jumped & takeoff_phase
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
+
+        vz = self.root_states[:, 9]
+        return torch.clamp(vz, min=0.0, max=3.0) / 3.0 * active.float()
+
+    def _reward_dof_hip_pos(self):
+        """惩罚髋关节外展偏移，抑制空中劈叉和侧向发散。"""
+        active = self._get_active_jump_mask() & self.jump_initialized & ~self.has_jumped
+        if not active.any():
+            return torch.zeros(self.num_envs, device=self.device)
+
+        hip_indices = [0, 3, 6, 9]
+        hip_pos = self.dof_pos[:, hip_indices]
+        hip_default = self.default_dof_pos[:, hip_indices]
+        hip_err = torch.sum(torch.square(hip_pos - hip_default), dim=1)
+        return hip_err * active.float()
+
+    def _reward_land_pos(self):
+        """在有效跳跃落地瞬间结算落点精度奖励。"""
+        landed_now = self.jump_landed_this_step
+        if not landed_now.any():
+            return torch.zeros(self.num_envs, device=self.device)
+
+        target_xy = self._get_jump_target_xy()
+        land_err_sq = torch.sum(torch.square(self.landing_poses - target_xy), dim=1)
+        land_rew = torch.exp(-land_err_sq / self.cfg.rewards.jump_land_sigma)
+
+        roll_pitch_sum = torch.abs(self.rpy[:, 0]) + torch.abs(self.rpy[:, 1])
+        valid_height = self.max_height > self.cfg.rewards.jump_land_height_gate
+        valid_attitude = roll_pitch_sum < self.cfg.rewards.jump_land_attitude_gate
+        valid = landed_now & valid_height & valid_attitude
+        return land_rew * valid.float()
+
     # ------------------------------------------------------------------
     # override tracking rewards during jump
     # ------------------------------------------------------------------
