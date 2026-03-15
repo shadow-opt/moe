@@ -86,6 +86,12 @@ class NOCVCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.22
+        class scales(GO2Cfg.rewards.scales):
+            straight_path = 2.0 # [NOTE] 新增奖励函数
+            straight_path_deviation = -0.5 # [NOTE] 新增
+            
+            
+        
 
 
 class NOCVCfgMoECTS(GO2CfgMoECTS):

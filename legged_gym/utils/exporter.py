@@ -243,7 +243,8 @@ class _OnnxPolicyExporter(torch.nn.Module):
             raise ValueError("Policy does not have an actor/student module.")
 
     def flatten_obs(self, x):  # flatten stack obs by terms to stack by step frames
-        term_dims = [3, 3, 3, self.num_actions, self.num_actions, self.num_actions]
+        # [note] 3 8
+        term_dims = [3, 3, 8, self.num_actions, self.num_actions, self.num_actions]
         obs_dim = sum(term_dims)
         if x.shape[1] % obs_dim != 0:
             raise ValueError(f"x.shape[1] ({x.shape[1]}) 不是 obs_dim ({obs_dim}) 的整数倍")

@@ -40,9 +40,38 @@ class JUMPCfg(NOCVCfg):
 	class commands(NOCVCfg.commands):
 		num_commands = 9
 		resampling_time = 2.5
-		dynamic_resample_commands = False
-		curriculum = False
-		command_range_curriculum = []
+		dynamic_resample_commands = True
+		command_range_curriculum = [{
+			'iter': 500,
+			'jump_dx': [-0.10, 0.10],
+			'jump_dy': [-0.05, 0.05],
+			'jump_dz': [0.05, 0.10],
+		}, {
+			'iter': 3000,
+			'jump_dx': [-0.15, 0.15],
+			'jump_dy': [-0.08, 0.08],
+			'jump_dz': [0.07, 0.12],
+		}, {
+			'iter': 6000,
+			'jump_dx': [-0.20, 0.20],
+			'jump_dy': [-0.10, 0.10],
+			'jump_dz': [0.09, 0.15],
+		}, {
+			'iter': 10000,
+			'jump_dx': [-0.25, 0.25],
+			'jump_dy': [-0.12, 0.12],
+			'jump_dz': [0.10, 0.18],
+		}, {
+			'iter': 15000,
+			'jump_dx': [-0.30, 0.30],
+			'jump_dy': [-0.15, 0.15],
+			'jump_dz': [0.11, 0.21],
+		}, {
+			'iter': 25000,
+			'jump_dx': [-0.35, 0.35],
+			'jump_dy': [-0.20, 0.20],
+			'jump_dz': [0.12, 0.25],
+		}]
 
 		# jump 任务不再复用 NoCV 的随机低姿态子任务；
 		# 蹲伏准备完全由 jump trigger 显式驱动。
@@ -72,10 +101,10 @@ class JUMPCfg(NOCVCfg):
 	class rewards(NOCVCfg.rewards):
 		jump_apex_sigma = 0.04
 		jump_land_sigma = 0.20
-		jump_land_height_gate = 0.42
-		jump_land_attitude_gate = 0.60
+		jump_land_height_gate = 0.15 # 放宽高度门控阈值，匹配早期课程
+		jump_land_attitude_gate = 0.80 # 放宽姿态门控，防止早期惩罚过严
 		jump_flight_foot_z_target = -0.20
-		jump_flight_foot_z_sigma = 0.02
+		jump_flight_foot_z_sigma = 0.05 # 放宽足端z轴收缩误差容忍度
 		jump_phase_contact_sigma = 0.08
 		jump_phase_takeoff_portion = 0.30
 		jump_phase_airborne_portion = 0.45

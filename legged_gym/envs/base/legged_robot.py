@@ -810,7 +810,10 @@ class LeggedRobot(BaseTask):
             self.turn_over_timer[env_ids] = 0.0
         # base position
         # reset 时先随机一个 yaw，避免策略过拟合固定朝向。
-        random_yaw = torch_rand_float(-np.pi, np.pi, (len(env_ids), 1), device=self.device).squeeze(1)
+        if getattr(self.cfg.init_state, 'randomize_yaw', True):
+            random_yaw = torch_rand_float(-np.pi, np.pi, (len(env_ids), 1), device=self.device).squeeze(1)
+        else:
+            random_yaw = torch.zeros(len(env_ids), device=self.device)
         def get_quat(target_yaws, roll: float):
             roll_tensor = torch.full((len(target_yaws),), roll, device=self.device)
             pitch_tensor = torch.zeros((len(target_yaws),), device=self.device)

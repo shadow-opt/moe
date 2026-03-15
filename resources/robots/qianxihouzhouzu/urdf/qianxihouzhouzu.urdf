@@ -7,18 +7,7 @@ Stephen Brawner (brawner@gmail.com)
     <mujoco>
         <compiler meshdir="../meshes/" balanceinertia="true" discardvisual="false" autolimits="true" />
     </mujoco>
-    <!-- 巨大的问题是Bodies touching ground (Indices): tensor([ 3,7,11, 15], device='cuda:0') #实际上 3 7 11 15不同时全部出现
-    Feet Indices: tensor([ 4,  8, 12, 16], device='cuda:0') 
-    body_names: ['trunk', 'FL_hip', 'FL_thigh', 'FL_calf', 'FL_foot', 'FR_hip', 'FR_thigh', 'FR_calf', 'FR_foot', 
-    'RL_hip', 'RL_thigh', 'RL_calf', 'RL_foot', 'RR_hip', 'RR_thigh', 'RR_calf', 'RR_foot', 'imu_link']
-
-    由于calf的collision尺寸比feet大一圈:仿真里是calf而不是feet着地 
-    Vertical Contact forces (脚底接触力) 检测不到，matplot数据图里一直是0 
-    sphere radius="0.01 0.03
-    临时：把fixed_foot z坐标由-0.22改为-0.229，foot碰撞体半径0.02改为0.03
-    -->
-    <!-- 注：如果asset.collapse_fixed_joints = True时isaacgym检测到两个物体通过 fixed关节连接时，为了节省计算资源，引擎会把他们合并-->
-    <link name="base">
+        <link name="base">
         <inertial>
             <origin xyz="-4.5586E-19 7.1229E-19 0" rpy="0 0 0" />
             <mass value="0" />

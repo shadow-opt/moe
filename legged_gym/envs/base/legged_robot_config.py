@@ -160,6 +160,7 @@ class LeggedRobotCfg(BaseConfig):
             'backflip': [0.10, 0.15],
             'sideflip': [0.16, 0.21],
         }
+        randomize_yaw = True # if false, keep initial yaw fixed to configured init_state.rot
 
     class control:
         """底层控制器配置。

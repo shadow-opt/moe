@@ -24,12 +24,13 @@ import torch
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # 这里把训练态环境改造成“更可视化、可复现”的测试态环境。
-    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 100)
+    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 200)
     # env_cfg.terrain.mesh_type = 'plane'
-    env_cfg.terrain.num_rows = 7
-    env_cfg.terrain.num_cols = 7
-    env_cfg.terrain.curriculum = False
+    # env_cfg.terrain.num_rows = 8
+    env_cfg.terrain.num_cols = 10
+    # env_cfg.terrain.curriculum = False
     env_cfg.noise.add_noise = False
+    
     env_cfg.domain_rand.randomize_friction = False
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.randomize_base_mass = False
@@ -37,6 +38,8 @@ def play(args):
     env_cfg.domain_rand.randomize_base_com = False
     env_cfg.domain_rand.randomize_pd_gains = False
     env_cfg.domain_rand.randomize_motor_zero_offset = False
+    env_cfg.init_state.randomize_yaw = False
+
 
     env_cfg.env.test = True
 
@@ -63,7 +66,8 @@ def play(args):
     for i in range(10*int(env.max_episode_length)):
         actions = policy(obs.detach())
 
-        if FIX_COMMAND:
+        # if FIX_COMMAND:
+        if True:
             # `jump` 任务需要同时固定 jump 相关 command，
             # 否则这里只改前三维速度命令，无法验证“可控跳高/跳远”。
             if args.task in ("jump", "j_cts") and env.commands.shape[1] >= 9:
@@ -83,6 +87,8 @@ def play(args):
                 env.commands[:, 0] = 1.0
                 env.commands[:, 1] = 0.0
                 env.commands[:, 2] = 0.0
+                # env.commands[:, 4] = 2.5
+                # env.commands[:, 3] = 1
 
         obs, _, rews, dones, infos = env.step(actions.detach())
 

@@ -331,6 +331,23 @@ class NoCVRobot(Go2Robot):
             self.commands[low_height_env_ids, self.body_height_command_idx] = self.cfg.commands.low_body_height_command
             self._apply_low_height_command_speed_limit(low_height_env_ids)
 
+    def _reward_similar_to_default(self):
+        """低高度特殊指令下关闭“全关节接近默认位姿”惩罚。"""
+        penalty = torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)
+        low_height_mask = self._get_is_low_height_command_mask()
+        penalty[low_height_mask] = 0.0
+        return penalty
+
+    def _reward_hip_to_default(self):
+        """低高度特殊指令下关闭“hip 接近默认位姿”惩罚。"""
+        hip_dof_indices = [0, 3, 6, 9]
+        hip_pos = self.dof_pos[:, hip_dof_indices]
+        default_hip_pos = self.default_dof_pos[:, hip_dof_indices]
+        penalty = torch.sum(torch.abs(hip_pos - default_hip_pos), dim=1)
+        low_height_mask = self._get_is_low_height_command_mask()
+        penalty[low_height_mask] = 0.0
+        return penalty
+
     def _reward_correct_base_height(self):
         """按 command 档位切换目标高度的 base-height reward。
 
@@ -404,3 +421,24 @@ class NoCVRobot(Go2Robot):
             * torch.exp(-feet_height / (0.025 * target_height.unsqueeze(1)))
         ).sum(-1)
         return rew
+    
+
+    def _reward_straight_path(self):
+        # 奖励直线路径
+        walking_straight_envs = (self.commands[:, 0]> 0.7) & (torch.abs(self.commands[:, 1]) < 1e-3)
+        # 实际上：命令小于0.2就会被裁剪为0
+        lat_error = torch.abs(self.commands[:, 1] - self.base_lin_vel[:, 1])
+
+        reward = torch.exp(-lat_error / self.cfg.rewards.tracking_sigma * 2.0)
+
+        return reward * walking_straight_envs.float()
+
+    def _reward_straight_path_deviation(self):
+        # 惩罚直走命令下的侧向速度与偏航角速度
+        walking_straight_envs = (self.commands[:, 0] > 0.5) & (torch.abs(self.commands[:, 1]) < 0.1) & (torch.abs(self.commands[:,2]) < 0.1)
+        # V_y 与 omega_z 偏差越大惩罚越大
+        lat_vel_error = torch.abs(self.base_lin_vel[:, 1])
+        yaw_vel_error = torch.abs(self.base_ang_vel[:, 2])
+        penalty = lat_vel_error + yaw_vel_error
+
+        return penalty * walking_straight_envs.float()
