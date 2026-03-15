@@ -84,7 +84,7 @@ def play(args):
                 env.commands[:, env.jump_trigger_command_idx] = env_cfg.commands.active_jump_command
             else:
                 # 这里直接把每个 env 的命令固定成“向前走”。
-                env.commands[:, 0] = 1.0
+                env.commands[:, 0] = 2.0
                 env.commands[:, 1] = 0.0
                 env.commands[:, 2] = 0.0
                 # env.commands[:, 4] = 2.5

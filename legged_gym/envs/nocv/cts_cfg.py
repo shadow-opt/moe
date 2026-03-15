@@ -74,7 +74,7 @@ class NOCVCfgCTS(GO2CfgCTS):
         num_steps_per_env = 24
         run_name = 'nocv'
         experiment_name = 'nocv_cts'
-        max_iterations = 24000
+        max_iterations = 40000
         save_interval = 1000
     
     class policy(GO2CfgCTS.policy):
@@ -87,5 +87,5 @@ class JUMPCfgCTS(NOCVCfgCTS):
     class runner(NOCVCfgCTS.runner):
         run_name = 'jump'
         experiment_name = 'jump_cts'
-        max_iterations = 30000
+        max_iterations = 40000
         save_interval = 1000

@@ -6,6 +6,8 @@ from legged_gym.envs.nocv.nocv_env import NoCVRobot
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg, NOCVCfgMoECTS
 from legged_gym.envs.nocv.jump_env import JumpRobot
 from legged_gym.envs.nocv.jump_cfg import JUMPCfg, JUMPCfgMoECTS
+from legged_gym.envs.nocv.curriculum_jump_env import CurriculumJumpRobot
+from legged_gym.envs.nocv.curriculum_jump_cfg import CurriculumJUMPCfg, CurriculumJUMPCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, JUMPCfgCTS, NCTSCfg, JCTSCfg
 
 from .base.legged_robot import LeggedRobot
@@ -33,6 +35,7 @@ task_registry.register("go2_ac_moe_cts", Go2Robot, GO2Cfg(), GO2CfgACMoECTS())
 task_registry.register("go2_dual_moe_cts", Go2Robot, GO2Cfg(), GO2CfgDualMoECTS())
 task_registry.register("nocv", NoCVRobot, NOCVCfg(), NOCVCfgMoECTS())
 task_registry.register("jump", JumpRobot, JUMPCfg(), JUMPCfgMoECTS())
+task_registry.register("free", CurriculumJumpRobot, CurriculumJUMPCfg(), CurriculumJUMPCfgMoECTS())
 task_registry.register("n_cts", NoCVRobot, NCTSCfg(), NOCVCfgCTS())
 task_registry.register("j_cts", JumpRobot, JCTSCfg(), JUMPCfgCTS())
 
