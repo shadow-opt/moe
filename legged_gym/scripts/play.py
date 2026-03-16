@@ -66,8 +66,8 @@ def play(args):
     for i in range(10*int(env.max_episode_length)):
         actions = policy(obs.detach())
 
-        # if FIX_COMMAND:
-        if True:
+        if FIX_COMMAND:
+        # if True:
             # `jump` 任务需要同时固定 jump 相关 command，
             # 否则这里只改前三维速度命令，无法验证“可控跳高/跳远”。
             if args.task in ("jump", "j_cts") and env.commands.shape[1] >= 9:
