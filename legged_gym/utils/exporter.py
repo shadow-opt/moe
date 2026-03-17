@@ -206,7 +206,8 @@ class _OnnxPolicyExporter(torch.nn.Module):
         super().__init__()
         self.verbose = verbose
         self.input_dim = None
-        self.num_actions = 12
+        self.num_actions = int(getattr(policy, "num_actions", 12))
+        self.obs_dim_per_frame = None
         self.normalizer = torch.nn.Identity()
         
         # copy policy parameters
@@ -214,12 +215,16 @@ class _OnnxPolicyExporter(torch.nn.Module):
             self.student_encoder = copy.deepcopy(policy.student_encoder)
             self.forward = self.forward_cts
             self.input_dim = self.student_encoder[0].in_features
+            if hasattr(policy, "history"):
+                self.obs_dim_per_frame = int(policy.history.shape[2])
+                self.history_length = int(policy.history.shape[1])
             
         elif hasattr(policy, "student_moe_encoder"):
             self.student_moe_encoder = copy.deepcopy(policy.student_moe_encoder)
             self.history_length = policy.history.shape[1]
             self.forward = self.forward_moe_no_goal_cts
             self.input_dim = self.history_length * policy.history.shape[2]
+            self.obs_dim_per_frame = int(policy.history.shape[2])
             if hasattr(policy, "obs_no_goal_mask"):
                 self.obs_no_goal_mask = copy.deepcopy(policy.obs_no_goal_mask).cpu()
             else:
@@ -234,18 +239,32 @@ class _OnnxPolicyExporter(torch.nn.Module):
                 self.rnn = copy.deepcopy(policy.memory_a.rnn)
             if self.input_dim is None:
                  self.input_dim = self.actor[0].in_features
+            if self.obs_dim_per_frame is None:
+                self.obs_dim_per_frame = int(self.input_dim)
         elif hasattr(policy, "actor_mcp"):
             self.actor = copy.deepcopy(policy.actor_mcp)
             self.obs_no_goal_mask = copy.deepcopy(policy.obs_no_goal_mask).cpu()
             self.history_length = policy.history.shape[1]
             self.forward = self.forward_mcp_cts 
+            self.obs_dim_per_frame = int(policy.history.shape[2])
         else:
             raise ValueError("Policy does not have an actor/student module.")
 
     def flatten_obs(self, x):  # flatten stack obs by terms to stack by step frames
-        # [note] 3 8
-        term_dims = [3, 3, 8, self.num_actions, self.num_actions, self.num_actions]
-        obs_dim = sum(term_dims)
+        if self.obs_dim_per_frame is not None:
+            obs_dim = int(self.obs_dim_per_frame)
+        elif hasattr(self, "history_length") and self.history_length > 0 and x.shape[1] % self.history_length == 0:
+            obs_dim = int(x.shape[1] // self.history_length)
+        else:
+            obs_dim = int(x.shape[1])
+        # 天才！手算一下cmd_dim
+        cmd_dim = obs_dim - (3 + 3 + self.num_actions + self.num_actions + self.num_actions)
+        if cmd_dim <= 0:
+            raise ValueError(
+                f"Invalid inferred cmd_dim={cmd_dim} from obs_dim={obs_dim}, num_actions={self.num_actions}."
+            )
+
+        term_dims = [3, 3, cmd_dim, self.num_actions, self.num_actions, self.num_actions]
         if x.shape[1] % obs_dim != 0:
             raise ValueError(f"x.shape[1] ({x.shape[1]}) 不是 obs_dim ({obs_dim}) 的整数倍")
             

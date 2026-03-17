@@ -82,8 +82,8 @@ if __name__ == "__main__":
     parser.add_argument("--save-video", action="store_true", help="Whether to save video of the simulation.")
     parser.add_argument("--visualize-moe-weights", action="store_true", help="Whether to visualize mixture of experts weights.")
     args = parser.parse_args()
-    save_video = args.save_video
-    visualize_moe_weights = args.visualize_moe_weights
+    save_video = False
+    visualize_moe_weights = True
     config_file = "go2.yaml"
 
     # Pygame 初始化

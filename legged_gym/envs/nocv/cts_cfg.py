@@ -1,8 +1,10 @@
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg
-from legged_gym.envs.nocv.jump_cfg import JUMPCfg
 from legged_gym.envs.go2.go2_config import GO2CfgCTS
 
 class NCTSCfg(NOCVCfg):
+    class terrain(NOCVCfg.terrain):
+        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.15, 0.15, 0.1, 0.0, 0.2]
+        # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
     class commands(NOCVCfg.commands):
         # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
         dynamic_resample_commands = True # sample commands with low bounds
@@ -49,22 +51,22 @@ class NCTSCfg(NOCVCfg):
             ang_vel_yaw = [-1.0, 1.0]   # min max [rad/s]
             heading = [-1.57, 1.57] # min max [rad]
 
-class JCTSCfg(JUMPCfg):
-    class commands(JUMPCfg.commands):
-        dynamic_resample_commands = True # sample commands with low bounds
-        command_range_curriculum = [{ # list for command range curriculums at specific training iterations
-            'iter': 6000, # training iteration at which the command ranges are updated
-            'lin_vel_x': [-1.0, 1.0], # min max [m/s]
-            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
-            'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
-            'heading': [-1.57, 1.57], # min max [rad]
-        }, { # list for command range curriculums at specific training iterations
-            'iter': 15000, # training iteration at which the command ranges are updated
-            'lin_vel_x': [-2.0, 2.0], # min max [m/s]
-            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
-            'ang_vel_yaw': [-2.0, 2.0], # min max [rad/s]
-            'heading': [-1.57, 1.57], # min max [rad]
-        }]
+# class JCTSCfg(JUMPCfg):
+#     class commands(JUMPCfg.commands):
+#         dynamic_resample_commands = True # sample commands with low bounds
+#         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
+#             'iter': 6000, # training iteration at which the command ranges are updated
+#             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
+#             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+#             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
+#             'heading': [-1.57, 1.57], # min max [rad]
+#         }, { # list for command range curriculums at specific training iterations
+#             'iter': 15000, # training iteration at which the command ranges are updated
+#             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
+#             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+#             'ang_vel_yaw': [-2.0, 2.0], # min max [rad/s]
+#             'heading': [-1.57, 1.57], # min max [rad]
+#         }]
 
 
 class NOCVCfgCTS(GO2CfgCTS):
@@ -81,11 +83,11 @@ class NOCVCfgCTS(GO2CfgCTS):
         latent_dim = 32
         norm_type = 'l2norm'
 
-class JUMPCfgCTS(NOCVCfgCTS):
-    """Go2 + CTS 训练配置。"""
+# class JUMPCfgCTS(NOCVCfgCTS):
+#     """Go2 + CTS 训练配置。"""
 
-    class runner(NOCVCfgCTS.runner):
-        run_name = 'jump'
-        experiment_name = 'jump_cts'
-        max_iterations = 40000
-        save_interval = 1000
+#     class runner(NOCVCfgCTS.runner):
+#         run_name = 'jump'
+#         experiment_name = 'jump_cts'
+#         max_iterations = 40000
+#         save_interval = 1000
