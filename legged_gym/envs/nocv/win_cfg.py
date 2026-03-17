@@ -65,8 +65,8 @@ class WINCfg(GO2Cfg):
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.18
         class scales(GO2Cfg.rewards.scales):
-            straight_path = 2.0 # [NOTE] 新增
-            straight_path_deviation = -0.5 # [NOTE] 新增
+            straight_path = 1.0 # [NOTE] 新增
+            straight_path_deviation = -0.7 # [NOTE] 新增
             
             
             

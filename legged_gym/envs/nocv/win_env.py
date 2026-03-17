@@ -423,7 +423,7 @@ class WINRobot(Go2Robot):
 
     def _reward_straight_path_deviation(self):
         # 惩罚直走命令下的侧向速度与偏航角速度
-        walking_straight_envs = (self.commands[:, 0] > 0.5) & (torch.abs(self.commands[:, 1]) < 0.1) & (torch.abs(self.commands[:,2]) < 0.1)
+        walking_straight_envs = (self.commands[:, 0] > 0.5) & (torch.abs(self.commands[:, 1]) < 0.01) & (torch.abs(self.commands[:,2]) < 0.01)
         # V_y 与 omega_z 偏差越大惩罚越大
         lat_vel_error = torch.abs(self.base_lin_vel[:, 1])
         yaw_vel_error = torch.abs(self.base_ang_vel[:, 2])
