@@ -272,7 +272,13 @@ class WINRobot(Go2Robot):
 
         self.privileged_obs_buf = torch.cat((
             self.base_lin_vel * self.obs_scales.lin_vel,
-            self.obs_buf,
+            self.base_ang_vel * self.obs_scales.ang_vel,
+            self.projected_gravity,
+            self.commands[:, :3] * self.commands_scale[:3],
+            self.commands[:, 4:] * self.commands_scale[3:], # heading 不进入 obs
+            (self.dof_pos - self.default_dof_pos) * self.obs_scales.dof_pos,
+            self.dof_vel * self.obs_scales.dof_vel,
+            self.actions,
             torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) * 1e-3,
             self.torques / self.torque_limits,
             (self.last_dof_vel - self.dof_vel) / self.dt * 1e-4,
