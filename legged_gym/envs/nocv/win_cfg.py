@@ -3,15 +3,38 @@ from legged_gym.envs.go2.go2_config import GO2CfgMoECTS
 from legged_gym.envs.go2.go2_config import GO2CfgCTS
 
 class WINCfg(GO2Cfg):
-    
+    class init_state(GO2Cfg.init_state):
+        turn_over = True
+        turn_over_proportions = [0.0, 0.3, 0.7] # proportions for backflip, sideflip, noflip
+
     class asset(GO2Cfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/qianxihouzhouzu/urdf/qianxihouzhouzu.urdf'
-        name = 'qxhzz'
-        foot_name = 'foot'
-        terminate_after_contacts_on = ["base", "trunk"]
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2.urdf'
+        name = 'z2'
+        foot_name = 'FOOT'
+        terminate_after_contacts_on = ["base"]
         penalize_contacts_on = ["thigh", "calf", "hip"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
         flip_visual_attachments = False
+
+    class control(GO2Cfg.control):
+        """底层控制器配置。
+
+        `LeggedRobot._compute_torques()` 会把 policy action 解释为：
+        - P: 位置目标偏移
+        - V: 速度目标
+        - T: 直接输出力矩
+
+        因此这里的 `action_scale`、`stiffness`、`damping` 和 `decimation`
+        会直接决定动作的物理含义与控制频率。
+        """
+        control_type = 'P' # P: position, V: velocity, T: torques
+        # PD Drive parameters:
+        stiffness = {'joint': 30.0}  # [N*m/rad]
+        damping = {'joint': 1.0}     # [N*m*s/rad]
+        # action scale: target angle = actionScale * action + defaultAngle
+        action_scale = 0.25
+        # decimation: Number of control action updates @ sim DT per policy DT
+        decimation = 4
 
     class env(GO2Cfg.env):
         # actor obs = 3(base_ang_vel) + 3(projected_gravity) + 6(command obs) + 12(dof_pos) + 12(dof_vel) + 12(actions)
