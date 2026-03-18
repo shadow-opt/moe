@@ -92,7 +92,7 @@ class WINCfg(GO2Cfg):
             straight_path = 1.0 # [NOTE] 新增
             straight_path_deviation = -1 # [NOTE] 新增
             stand_still = -0.5
-            x_command_hip_regular = -0.5
+            # x_command_hip_regular = -0.5
             
             
             
