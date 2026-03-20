@@ -142,8 +142,8 @@ class Terrain:
         elif choice < self.proportions[6]:
             terrain.terrain_name = "stones"
             terrain.terrain_id = 6
-            terrain_utils.wave_terrain(terrain, num_waves=6, amplitude=amplitude)
-            terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.08 * difficulty, max_height=0.05 + 0.08 * difficulty, step=0.005, downsampled_scale=0.2)
+            stone_terrain(terrain, step_width=0.2, step_height=step_height*0.25, platform_size=2.)
+            terrain_utils.random_uniform_terrain(terrain, min_height=-0.03 - 0.05 * difficulty, max_height=0.03 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
             # terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[7]:  # 间隙
             terrain.terrain_name = "gap"
@@ -224,22 +224,35 @@ def gap_plus_terrain(terrain, gap_size = 0.1, platform_size=4.0):
     terrain.height_field_raw[center_x-x2 : center_x + x2, center_y-y2 : center_y + y2] = -1000
     terrain.height_field_raw[center_x-x1 : center_x + x1, center_y-y1 : center_y + y1] = 0
 
-def stone_terrain(terrain, stone_size, stone_distance, max_height=0., platform_size=4.):
-    stone_size = int(stone_size / terrain.horizontal_scale)
-    stone_distance = int(stone_distance / terrain.horizontal_scale)
+def stone_terrain(terrain, step_width, step_height, platform_size=2.):
+    # def pyramid_stairs_terrain(terrain, step_width, step_height, platform_size=1.):
+    # """
+    # Generate stairs
+
+    # Parameters:
+    #     terrain (terrain): the terrain
+    #     step_width (float):  the width of the step [meters]
+    #     step_height (float): the step_height [meters]
+    #     platform_size (float): size of the flat platform at the center of the terrain [meters]
+    # Returns:
+    #     terrain (SubTerrain): update terrain
+    # """
+    # switch parameters to discrete units
+    step_width = int(step_width / terrain.horizontal_scale)
+    step_height = int(step_height / terrain.vertical_scale)
     platform_size = int(platform_size / terrain.horizontal_scale)
 
-    center_x = terrain.length // 2
-    center_y = terrain.width // 2
-    x1 = platform_size // 2
-    x2 = x1 + stone_size
-    y1 = platform_size // 2
-    y2 = y1 + stone_size
-
-    for i in range(-2, 3):
-        for j in range(-2, 3):
-            if i==0 and j==0:
-                continue
-            offset_x = i * (stone_size + stone_distance)
-            offset_y = j * (stone_size + stone_distance)
-            terrain.height_field_raw[center_x+x1+offset_x : center_x + x2+offset_x, center_y+y1+offset_y : center_y + y2+offset_y] = max_height
+    height = 0
+    start_x = 0
+    stop_x = terrain.width
+    start_y = 0
+    stop_y = terrain.length
+    height = step_height
+    while (stop_x - start_x) > platform_size and (stop_y - start_y) > platform_size:
+        start_x += step_width
+        stop_x -= step_width
+        start_y += step_width
+        stop_y -= step_width
+        height = -height
+        terrain.height_field_raw[start_x: stop_x, start_y: stop_y] = height
+    return terrain

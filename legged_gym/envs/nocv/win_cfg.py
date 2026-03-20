@@ -5,16 +5,16 @@ from legged_gym.envs.go2.go2_config import GO2CfgCTS
 class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
         turn_over = True
-        turn_over_proportions = [0.0, 0.3, 0.7] # proportions for backflip, sideflip, noflip
+        turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
 
     class asset(GO2Cfg.asset):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2.urdf'
         name = 'z2'
         foot_name = 'FOOT'
-        terminate_after_contacts_on = ["base"]
-        penalize_contacts_on = ["thigh", "calf", "hip"]
+        terminate_after_contacts_on = ["base","trunk"]
+        penalize_contacts_on = ["thigh", "calf", "hip", "base"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
-        flip_visual_attachments = False
+        flip_visual_attachments = True
 
     class control(GO2Cfg.control):
         """底层控制器配置。
@@ -87,11 +87,13 @@ class WINCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.18
-
+        base_height_target = 0.37
         class scales(GO2Cfg.rewards.scales):
             straight_path = 1.0 # [NOTE] 新增
-            straight_path_deviation = -1 # [NOTE] 新增
-            stand_still = -0.5
+            straight_path_deviation = -2 # [NOTE] 新增
+            stand_still = -1.0
+            orientation = -0.5
+            stumble = -1
             # x_command_hip_regular = -0.5
             
             
@@ -105,5 +107,5 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = ''
         experiment_name = 'win_moe_cts'
-        max_iterations = 100000
+        max_iterations = 120000
         save_interval = 5000
