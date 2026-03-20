@@ -11,8 +11,8 @@ class WINCfg(GO2Cfg):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2.urdf'
         name = 'z2'
         foot_name = 'FOOT'
-        terminate_after_contacts_on = ["base","trunk"]
-        penalize_contacts_on = ["thigh", "calf", "hip", "base"]
+        terminate_after_contacts_on = ["base"]
+        penalize_contacts_on = ["thigh", "calf", "hip"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
         flip_visual_attachments = True
 
