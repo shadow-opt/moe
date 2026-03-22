@@ -4,7 +4,7 @@ from legged_gym.envs.go2.go2_config import GO2CfgCTS
 
 class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
-        turn_over = True
+        turn_over = False
         turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
 
     class asset(GO2Cfg.asset):
@@ -82,6 +82,47 @@ class WINCfg(GO2Cfg):
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
 
+                # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
+        dynamic_resample_commands = True # sample commands with low bounds
+        command_range_curriculum = [{ # list for command range curriculums at specific training iterations
+            'iter': 10000, # training iteration at which the command ranges are updated
+            'lin_vel_x': [-1.0, 1.0], # min max [m/s]
+            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+            'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
+            'heading': [-1.57, 1.57], # min max [rad]
+        }, { # list for command range curriculums at specific training iterations
+            'iter': 30000, # training iteration at which the command ranges are updated
+            'lin_vel_x': [-1.5, 1.5], # min max [m/s]
+            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+            'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
+            'heading': [-1.57, 1.57], # min max [rad]
+        },{ # list for command range curriculums at specific training iterations
+            'iter': 50000, # training iteration at which the command ranges are updated
+            'lin_vel_x': [-2.0, 2.0], # min max [m/s]
+            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+            'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
+            'heading': [-1.57, 1.57], # min max [rad]
+        }
+        ]
+        
+        turn_over_zero_time = { # if turn_over is true, time robot must be stable before sampling new commands after a turn over
+            "backflip": 5.0,
+            "sideflip": 3.0,
+        }
+        # terrain-wise 上限，相当于“全局命令范围”和“地形可承受范围”的交集裁剪。
+        # [wave, slope, rough slope, stairs up, stairs down, obstacles, stepping stones, gap, flat]
+        terrain_max_command_ranges = [
+            {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
+            {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
+            {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs up
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
+            {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
+            {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0], 'heading': [-1.57, 1.57]},  # flat
+        ]
+
 
     class rewards(GO2Cfg.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
@@ -107,5 +148,5 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = ''
         experiment_name = 'win_moe_cts'
-        max_iterations = 120000
+        max_iterations = 80000
         save_interval = 5000

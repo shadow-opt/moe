@@ -142,8 +142,10 @@ class Terrain:
         elif choice < self.proportions[6]:
             terrain.terrain_name = "stones"
             terrain.terrain_id = 6
-            stone_terrain(terrain, step_width=0.2, step_height=step_height*0.25, platform_size=2.)
-            terrain_utils.random_uniform_terrain(terrain, min_height=-0.03 - 0.05 * difficulty, max_height=0.03 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
+            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
+            stone_terrain(terrain, step_width=0.31, step_height=step_height*0.3, platform_size=2.)
+            terrain_utils.wave_terrain(terrain, num_waves=5, amplitude=amplitude)
+            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
             # terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[7]:  # 间隙
             terrain.terrain_name = "gap"
