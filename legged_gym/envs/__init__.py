@@ -8,7 +8,8 @@ from legged_gym.envs.nocv.win_env import WINRobot
 from legged_gym.envs.nocv.win_cfg import WINCfg
 from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, NCTSCfg
-
+from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
+from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS 
 from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
@@ -35,3 +36,4 @@ task_registry.register("go2_dual_moe_cts", Go2Robot, GO2Cfg(), GO2CfgDualMoECTS(
 task_registry.register("nocv", NoCVRobot, NOCVCfg(), NOCVCfgMoECTS())
 task_registry.register("n_cts", NoCVRobot, NCTSCfg(), NOCVCfgCTS())
 task_registry.register("win", WINRobot, WINCfg(), WINCfgMoECTS())
+task_registry.register("win_cts", WINRobot, WINCTS(), WINCfgCTS())
