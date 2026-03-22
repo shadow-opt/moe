@@ -46,7 +46,7 @@ class WINCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
-        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.15, 0.15, 0.1, 0.0, 0.2]
+        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
     class commands(GO2Cfg.commands):
@@ -73,11 +73,11 @@ class WINCfg(GO2Cfg):
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
         low_height_command_velocity_scale = [0.5, 0.5, 0.7]
 
-        special_terrain_options_5 = [3, 4, 5]
+        special_terrain_options_5 = [3]
         special_terrain_options_6 = [6]
-        # 对于 stairs up/down 和 obstacles 5
+        # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0.6
+        special_terrain_probs = 0.5
         special_terrain_command = 1
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
@@ -91,9 +91,9 @@ class WINCfg(GO2Cfg):
         class scales(GO2Cfg.rewards.scales):
             straight_path = 1.0 # [NOTE] 新增
             straight_path_deviation = -2 # [NOTE] 新增
-            stand_still = -1.0
+            stand_still = -1.5
             orientation = -0.5
-            stumble = -1
+            stumble = -1.
             # x_command_hip_regular = -0.5
             
             
