@@ -91,9 +91,9 @@ class WINCfg(GO2Cfg):
         class scales(GO2Cfg.rewards.scales):
             straight_path = 1.0 # [NOTE] 新增
             straight_path_deviation = -2 # [NOTE] 新增
-            stand_still = -1.5
-            orientation = -0.5
-            stumble = -1.
+            stand_still = -2
+            orientation = -2
+            stumble = -2.
             # x_command_hip_regular = -0.5
             
             
