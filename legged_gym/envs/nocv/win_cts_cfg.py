@@ -30,8 +30,8 @@ class WINCTS(WINCfg):
         special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0.5
-        special_terrain_command = 1
+        special_terrain_probs = 0
+        special_terrain_command = 0
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
 
@@ -45,12 +45,6 @@ class WINCTS(WINCfg):
             'heading': [-1.57, 1.57], # min max [rad]
         }, { # list for command range curriculums at specific training iterations
             'iter': 15000, # training iteration at which the command ranges are updated
-            'lin_vel_x': [-1.5, 1.5], # min max [m/s]
-            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
-            'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
-            'heading': [-1.57, 1.57], # min max [rad]
-        },{ # list for command range curriculums at specific training iterations
-            'iter': 30000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -83,7 +77,7 @@ class WINCfgCTS(GO2CfgCTS):
         num_steps_per_env = 24
         run_name = 'cts'
         experiment_name = 'win_cts'
-        max_iterations = 50000
+        max_iterations = 40000
         save_interval = 5000
     
     class policy(GO2CfgCTS.policy):

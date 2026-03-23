@@ -73,8 +73,8 @@ class WINCfg(GO2Cfg):
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
         low_height_command_velocity_scale = [0.5, 0.5, 0.7]
 
-        special_terrain_options_5 = [3]
-        special_terrain_options_6 = [6]
+        special_terrain_options_5 = []
+        special_terrain_options_6 = []
         # 对于 stairs up  3
         # 对于 stones 6
         special_terrain_probs = 0
