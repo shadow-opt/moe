@@ -73,12 +73,12 @@ class WINCfg(GO2Cfg):
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
         low_height_command_velocity_scale = [0.5, 0.5, 0.7]
 
-        special_terrain_options_5 = []
-        special_terrain_options_6 = []
+        special_terrain_options_5 = [3]
+        special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0
-        special_terrain_command = 0
+        special_terrain_probs = 0.5
+        special_terrain_command = 1
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
 
@@ -91,7 +91,7 @@ class WINCfg(GO2Cfg):
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 35000, # training iteration at which the command ranges are updated
+            'iter': 30000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -128,7 +128,7 @@ class WINCfg(GO2Cfg):
             # straight_path_deviation = -2 # [NOTE] 新增
             stand_still = -1
             orientation = -2
-            stumble = -2.
+            # stumble = -2.
             # x_command_hip_regular = -0.5
             
             

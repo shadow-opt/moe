@@ -77,7 +77,7 @@ class WINCfgCTS(GO2CfgCTS):
         num_steps_per_env = 24
         run_name = 'cts'
         experiment_name = 'win_cts'
-        max_iterations = 25000
+        max_iterations = 30000
         save_interval = 5000
     
     class policy(GO2CfgCTS.policy):
