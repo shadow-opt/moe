@@ -70,6 +70,18 @@ class WINCTS(WINCfg):
             {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0], 'heading': [-1.57, 1.57]},  # flat
         ]
 
+class WINVanillaCTS(WINCTS):
+    class commands(WINCTS.commands):
+        special_terrain_options_5 = [3]
+        special_terrain_options_6 = [6]
+        # 对于 stairs up  3
+        # 对于 stones 6
+        special_terrain_probs = 0.0
+        special_terrain_command = 0
+        normal_terrain_command = 0
+        special_terrain_command_obs_scale = 1.0
+
+
 
 class WINCfgCTS(GO2CfgCTS):
 
