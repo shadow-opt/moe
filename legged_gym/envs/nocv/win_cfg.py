@@ -124,10 +124,10 @@ class WINCfg(GO2Cfg):
         low_base_height_target = 0.18
         base_height_target = 0.37
         class scales(GO2Cfg.rewards.scales):
-            # straight_path = 1.0 # [NOTE] 新增
-            # straight_path_deviation = -2 # [NOTE] 新增
-            stand_still = -1
-            orientation = -2
+            straight_path = 10.0 # [NOTE] 新增
+            straight_path_deviation = -5 # [NOTE] 新增
+            stand_still = -1.2
+            orientation = -0.1
             # stumble = -2.
             # x_command_hip_regular = -0.5
             
