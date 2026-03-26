@@ -9,7 +9,8 @@ from legged_gym.envs.nocv.win_cfg import WINCfg
 from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, NCTSCfg
 from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
-from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS 
+from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS
+from legged_gym.envs.nocv.him_cfg import HIMCfg, HIMCfgPPO 
 from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
@@ -38,3 +39,4 @@ task_registry.register("n_cts", NoCVRobot, NCTSCfg(), NOCVCfgCTS())
 task_registry.register("win", WINRobot, WINCfg(), WINCfgMoECTS())
 task_registry.register("win_cts", WINRobot, WINCTS(), WINCfgCTS())
 task_registry.register("win_v_cts", WINRobot, WINVanillaCTS(), WINCfgCTS())
+task_registry.register("him", WINRobot, HIMCfg(), HIMCfgPPO())

@@ -13,10 +13,17 @@ class WINRobot(Go2Robot):
     - `commands[:, 5]`: `stairs_mode`
     - `commands[:, 6]`: `stone_mode`
     """
+    def __init__(self, cfg, sim_params, physics_engine, sim_device, headless):
+        super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
+        self.num_one_step_obs = self.num_obs
+        self.num_one_step_privileged_obs = self.num_privileged_obs
+        
+
+
 
     def _init_buffers(self):
         super()._init_buffers()
-
+        
         if self.commands.shape[1] < 7:
             raise RuntimeError(
                 f"WIN requires at least 7 command dims, got {self.commands.shape[1]}"

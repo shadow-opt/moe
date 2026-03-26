@@ -3,3 +3,4 @@
 
 from .rollout_storage import RolloutStorage
 from .rollout_storage_cts import RolloutStorageCTS
+from .him_rollout_storage import HIMRolloutStorage

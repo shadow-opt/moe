@@ -35,3 +35,4 @@ from .mcp_cts import MCPCTS
 from .ac_moe_cts import ACMoECTS
 from .dual_moe_cts import DualMoECTS
 from .moe_cts import MoECTS
+from .him_ppo import HIMPPO

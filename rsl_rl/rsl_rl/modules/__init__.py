@@ -36,3 +36,5 @@ from .actor_critic_mcp_cts import ActorCriticMCPCTS
 from .actor_critic_ac_moe_cts import ActorCriticACMoECTS
 from .actor_critic_dual_moe_cts import ActorCriticDualMoECTS
 from .actor_critic_moe_cts import ActorCriticMoECTS
+from .him_actor_critic import HIMActorCritic
+from .him_estimator import HIMEstimator

@@ -1,57 +1,8 @@
-from legged_gym.envs.go2.go2_config import GO2Cfg
-from legged_gym.envs.go2.go2_config import GO2CfgMoECTS
-from legged_gym.envs.go2.go2_config import GO2CfgCTS
+from .win_cts_cfg import WINVanillaCTS
+from legged_gym.envs.base.legged_robot_config import LeggedRobotCfgHIM
 
-class WINCfg(GO2Cfg):
-    class init_state(GO2Cfg.init_state):
-        turn_over = False
-        turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
-
-    class asset(GO2Cfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2.urdf'
-        name = 'z2'
-        foot_name = 'FOOT'
-        terminate_after_contacts_on = ["base"]
-        penalize_contacts_on = ["thigh", "calf", "hip"]
-        self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
-        flip_visual_attachments = True
-
-    class control(GO2Cfg.control):
-        """底层控制器配置。
-
-        `LeggedRobot._compute_torques()` 会把 policy action 解释为：
-        - P: 位置目标偏移
-        - V: 速度目标
-        - T: 直接输出力矩
-
-        因此这里的 `action_scale`、`stiffness`、`damping` 和 `decimation`
-        会直接决定动作的物理含义与控制频率。
-        """
-        control_type = 'P' # P: position, V: velocity, T: torques
-        # PD Drive parameters:
-        stiffness = {'joint': 30.0}  # [N*m/rad]
-        damping = {'joint': 1.0}     # [N*m*s/rad]
-        # action scale: target angle = actionScale * action + defaultAngle
-        action_scale = 0.25
-        # decimation: Number of control action updates @ sim DT per policy DT
-        decimation = 4
-
-    class env(GO2Cfg.env):
-        # actor obs = 3(base_ang_vel) + 3(projected_gravity) + 6(command obs) + 12(dof_pos) + 12(dof_vel) + 12(actions)
-        num_observations = 48
-        # privileged obs = actor obs(48) + base_lin_vel(3) + foot contact forces(4) + torques(12)
-        #                + dof accelerations(12) + terrain heights(187)
-        num_privileged_obs = 48 + 3 + 4 + 12 + 12 + 187
-        num_one_step_obs = 48
-
-    class terrain(GO2Cfg.terrain):
-        # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
-        # 低高度档位只在 slope / rough_slope / flat 上启用。
-        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
-        # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
-        
-    class commands(GO2Cfg.commands):
-
+class HIMCfg(WINVanillaCTS):
+    class commands(WINVanillaCTS.commands):
         num_commands = 7 # 这是buffer，比command多1维 实际输入-1
 
         body_height_command_idx = 4 # buffer的第5维，索引第4维
@@ -86,13 +37,13 @@ class WINCfg(GO2Cfg):
                 # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
         dynamic_resample_commands = True # sample commands with low bounds
         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
-            'iter': 20000, # training iteration at which the command ranges are updated
+            'iter': 700, # training iteration at which the command ranges are updated
             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 50000, # training iteration at which the command ranges are updated
+            'iter': 1300, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -117,31 +68,13 @@ class WINCfg(GO2Cfg):
             {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
             {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0], 'heading': [-1.57, 1.57]},  # flat
         ]
+    
 
 
-    class rewards(GO2Cfg.rewards):
-        # 正常档位继续沿用父类中的 `base_height_target`。
-        # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.18
-        base_height_target = 0.37
-        class scales(GO2Cfg.rewards.scales):
-            # straight_path = 10.0 # [NOTE] 新增
-            # straight_path_deviation = -5 # [NOTE] 新增
-            stand_still = -1.5
-            # orientation = -0.5
-            # stumble = -2.
-            # x_command_hip_regular = -0.5
-            
-            
-            
-class WINCfgMoECTS(GO2CfgMoECTS):
-    """WIN 对应的 MoE CTS 训练配置。
-
-    这里只保留训练器侧配置继承；环境侧实际会配合 `WINCfg` 一起注册使用。
-    """
-
-    class runner(GO2CfgMoECTS.runner):
+class HIMCfgPPO(LeggedRobotCfgHIM):
+    history_length = 10
+    class algorithm( LeggedRobotCfgHIM.algorithm ):
+        entropy_coef = 0.01
+    class runner( LeggedRobotCfgHIM.runner ):
         run_name = ''
-        experiment_name = 'win_moe_cts'
-        max_iterations = 80000
-        save_interval = 5000
+        experiment_name = 'himloco'

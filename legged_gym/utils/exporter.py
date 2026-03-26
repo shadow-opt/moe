@@ -71,6 +71,15 @@ class _TorchPolicyExporter(torch.nn.Module):
         super().__init__()
         self.is_recurrent = policy.is_recurrent
         # copy policy parameters
+        """himloco"""
+        if hasattr(policy, "estimator") and hasattr(policy, "history_size") and hasattr(policy, "num_one_step_obs"):
+            self.estimator = copy.deepcopy(policy.estimator).cpu()
+            self.actor = copy.deepcopy(policy.actor).cpu()
+            self.num_one_step_obs = int(policy.num_one_step_obs)
+            self.history_length = int(policy.history_size)
+            self.history = torch.zeros([1, self.history_length, self.num_one_step_obs], device="cpu")
+            self.forward = self.forward_him
+        """him"""
         if hasattr(policy, "student_encoder"):
             self.student_encoder = copy.deepcopy(policy.student_encoder).cpu()
             self.history = torch.zeros([1, policy.history.shape[1], policy.history.shape[2]], device='cpu')
@@ -129,6 +138,14 @@ class _TorchPolicyExporter(torch.nn.Module):
 
     def forward(self, x):
         return self.actor(self.normalizer(x))
+
+    def forward_him(self, x):
+        x = self.normalizer(x)
+        one_step_obs = x[:, :self.num_one_step_obs]
+        self.history = torch.cat([self.history[:, 1:], one_step_obs.unsqueeze(1)], dim=1)
+        vel, latent = self.estimator(self.history.flatten(1))
+        actor_input = torch.cat([one_step_obs, vel, latent], dim=1)
+        return self.actor(actor_input)
     
     def forward_cts(self, x):  # x is single observations
         # 单步部署时仍然会把新 obs 右移拼进 `history`，
@@ -211,7 +228,14 @@ class _OnnxPolicyExporter(torch.nn.Module):
         self.normalizer = torch.nn.Identity()
         
         # copy policy parameters
-        if hasattr(policy, 'student_encoder'):
+        if hasattr(policy, "estimator") and hasattr(policy, "history_size") and hasattr(policy, "num_one_step_obs"):
+            self.estimator = copy.deepcopy(policy.estimator)
+            self.actor = copy.deepcopy(policy.actor)
+            self.history_length = int(policy.history_size)
+            self.num_one_step_obs = int(policy.num_one_step_obs)
+            self.input_dim = self.history_length * self.num_one_step_obs
+            self.forward = self.forward_him
+        elif hasattr(policy, 'student_encoder'):
             self.student_encoder = copy.deepcopy(policy.student_encoder)
             self.forward = self.forward_cts
             self.input_dim = self.student_encoder[0].in_features
@@ -249,6 +273,13 @@ class _OnnxPolicyExporter(torch.nn.Module):
             self.obs_dim_per_frame = int(policy.history.shape[2])
         else:
             raise ValueError("Policy does not have an actor/student module.")
+
+    def forward_him(self, x):
+        x = self.normalizer(x)
+        vel, latent = self.estimator(x)
+        one_step_obs = x[:, -self.num_one_step_obs:]
+        actor_input = torch.cat([one_step_obs, vel, latent], dim=1)
+        return self.actor(actor_input)
 
     def flatten_obs(self, x):  # flatten stack obs by terms to stack by step frames
         if self.obs_dim_per_frame is not None:

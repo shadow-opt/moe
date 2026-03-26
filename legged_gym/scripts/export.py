@@ -85,6 +85,16 @@ def _build_policy_from_task(task: str, device: str):
 			train_cfg.history_length,
 			**policy_cfg,
 		).to(device)
+	elif train_cfg.runner_class_name == "HIMOnPolicyRunner":
+		num_one_step_obs = getattr(env_cfg.env, "num_one_step_obs", num_actor_obs)
+		history_length = int(getattr(train_cfg, "history_length", train_cfg_dict.get("history_length", 1)))
+		model = policy_class(
+			num_one_step_obs * history_length,
+			num_critic_obs,
+			num_one_step_obs,
+			num_actions,
+			**policy_cfg,
+		).to(device)
 	else:
 		model = policy_class(
 			num_actor_obs,
