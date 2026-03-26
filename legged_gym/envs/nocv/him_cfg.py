@@ -80,6 +80,7 @@ class HIMCfg(WINVanillaCTS):
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.18
         base_height_target = 0.37
+        only_positive_rewards = True
         class scales(WINVanillaCTS.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -5 # [NOTE] 新增
