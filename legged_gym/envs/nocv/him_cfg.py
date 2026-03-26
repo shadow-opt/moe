@@ -43,7 +43,7 @@ class HIMCfg(WINVanillaCTS):
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 1300, # training iteration at which the command ranges are updated
+            'iter': 1500, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
