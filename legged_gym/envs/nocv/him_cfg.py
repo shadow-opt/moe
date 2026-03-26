@@ -95,3 +95,7 @@ class HIMCfgPPO(LeggedRobotCfgHIM):
     class runner( LeggedRobotCfgHIM.runner ):
         run_name = ''
         experiment_name = 'himloco'
+        max_iterations = 4000 # number of policy updates
+
+        # logging
+        save_interval = 500 # check for potential saves every this many iterations
