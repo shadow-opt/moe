@@ -90,7 +90,7 @@ class HIMCfg(WINVanillaCTS):
             # x_command_hip_regular = -0.5
 
 class HIMCfgPPO(LeggedRobotCfgHIM):
-    history_length = 10
+    history_length = 6
     class algorithm( LeggedRobotCfgHIM.algorithm ):
         entropy_coef = 0.01
     class runner( LeggedRobotCfgHIM.runner ):
