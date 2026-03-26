@@ -29,21 +29,21 @@ class HIMCfg(WINVanillaCTS):
         special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0.5
-        special_terrain_command = 1
+        special_terrain_probs = 0.0
+        special_terrain_command = 0
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
 
                 # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
         dynamic_resample_commands = True # sample commands with low bounds
         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
-            'iter': 700, # training iteration at which the command ranges are updated
+            'iter': 1000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 1500, # training iteration at which the command ranges are updated
+            'iter': 2000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -69,7 +69,24 @@ class HIMCfg(WINVanillaCTS):
             {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0], 'heading': [-1.57, 1.57]},  # flat
         ]
     
+        class ranges(WINVanillaCTS.commands.ranges):
+            lin_vel_x = [-1.0, 1.0] # min max [m/s]
+            lin_vel_y = [-1.0, 1.0] # min max [m/s]
+            ang_vel_yaw = [-1.0, 1.0]   # min max [rad/s]
+            heading = [-1.57, 1.57] # min max [rad]
 
+    class rewards(WINVanillaCTS.rewards):
+        # 正常档位继续沿用父类中的 `base_height_target`。
+        # 低高度档位下，改为追踪这个更低的目标高度。
+        low_base_height_target = 0.18
+        base_height_target = 0.37
+        class scales(WINVanillaCTS.rewards.scales):
+            # straight_path = 10.0 # [NOTE] 新增
+            # straight_path_deviation = -5 # [NOTE] 新增
+            stand_still = -0.5
+            # orientation = -0.5
+            # stumble = -2.
+            # x_command_hip_regular = -0.5
 
 class HIMCfgPPO(LeggedRobotCfgHIM):
     history_length = 10
