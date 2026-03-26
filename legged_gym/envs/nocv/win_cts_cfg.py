@@ -38,13 +38,13 @@ class WINCTS(WINCfg):
                 # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
         dynamic_resample_commands = True # sample commands with low bounds
         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
-            'iter': 5000, # training iteration at which the command ranges are updated
+            'iter': 15000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         }, { # list for command range curriculums at specific training iterations
-            'iter': 10000, # training iteration at which the command ranges are updated
+            'iter': 30000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
