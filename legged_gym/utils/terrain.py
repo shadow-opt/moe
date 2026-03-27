@@ -94,13 +94,13 @@ class Terrain:
         if IS_HARD:
             # hard
             slope = 0.1 + difficulty * 0.52  # max: 29.6 degrees
-            step_height = 0.07 + 0.23 * difficulty  # max: 0.257 m
+            step_height = 0.05 + 0.23 * difficulty  # max: 0.257 m
             discrete_obstacles_height = 0.05 + difficulty * 0.25  # max: 0.275 m
         else:
             # default (easy)
             slope = difficulty * 0.4  # max: 19.8 degrees
-            step_height = 0.07 + 0.18 * difficulty  # max: 0.212 m
-            discrete_obstacles_height = 0.07 + difficulty * 0.2  # max: 0.23 m
+            step_height = 0.05 + 0.18 * difficulty  # max: 0.212 m
+            discrete_obstacles_height = 0.05 + difficulty * 0.2  # max: 0.23 m
 
         stepping_stones_size = 1.5 * (1.05 - difficulty)
         stone_distance = 0.05 if difficulty==0 else 0.1
