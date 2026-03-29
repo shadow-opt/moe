@@ -1,7 +1,7 @@
-policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/nocv_cts/exported/policies/policy.pt"
+policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_cts/exported/policies/policy.pt"
 
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/qianxihouzhouzu/urdf/mjmodel.xml"
-xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/mjmodel.xml"
+xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/stairs.xml"
 # Total simulation time
 simulation_duration: 60000000.0
 # Simulation time step
@@ -12,8 +12,11 @@ control_decimation: 40
 kps: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30] 
 kds: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] 
 
-default_angles: [0.1,  0.8,  -1.5,  -0.1, 0.8, -1.5, 
-                 0.1,  1.0,  -1.5,  -0.1, 1.0, -1.5] 
+# MuJoCo j60 joint order in mjmodel.xml is FL, RL, FR, RR.
+# Keep default_angles aligned to MuJoCo order because deploy script applies
+# PD target directly in MuJoCo joint index space.
+default_angles: [0.1,  0.8,  -1.5,   0.1, 1.0, -1.5,
+                 -0.1, 0.8,  -1.5,  -0.1, 1.0, -1.5]
 
 lin_vel_scale: 2.0
 ang_vel_scale: 0.25 
@@ -31,18 +34,18 @@ mujoco_joint_names: [
   "FL_hip_joint",
   "FL_thigh_joint",
   "FL_calf_joint",
-  "FR_hip_joint",
-  "FR_thigh_joint",
-  "FR_calf_joint",
   "RL_hip_joint",
   "RL_thigh_joint",
   "RL_calf_joint",
+  "FR_hip_joint",
+  "FR_thigh_joint",
+  "FR_calf_joint",
   "RR_hip_joint",
   "RR_thigh_joint",
   "RR_calf_joint"
 ]
 
-# IsaacGym is same as Mujoco joint names
+# Keep model_joint_names in training/model output order.
 model_joint_names: [
   "FL_hip_joint",
   "FL_thigh_joint",

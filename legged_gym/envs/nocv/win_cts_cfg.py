@@ -30,8 +30,8 @@ class WINCTS(WINCfg):
         special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0.5
-        special_terrain_command = 1
+        special_terrain_probs = 0.0
+        special_terrain_command = 0
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
 
@@ -72,16 +72,16 @@ class WINCTS(WINCfg):
 
 class WINVanillaCTS(WINCTS):
     class commands(WINCTS.commands):
-        special_terrain_options_5 = [3]
+        special_terrain_options_5 = [3, 5]
         special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 0.0
-        special_terrain_command = 0
+        special_terrain_probs = 1.0
+        special_terrain_command = 1
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
     class terrain(WINCTS.terrain):
-        terrain_proportions = [0.05, 0.05, 0.1, 0.3, 0.1, 0.2, 0.0, 0.0, 0.2]
+        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
 
 

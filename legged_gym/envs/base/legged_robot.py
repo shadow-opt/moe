@@ -1527,7 +1527,14 @@ class LeggedRobot(BaseTask):
     
     def _reward_orientation(self):
         # Penalize non flat base orientation
-        return torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
+        rew = torch.sum(torch.square(self.projected_gravity[:, :2]), dim=1)
+        # When low body-height command is active, allow a larger posture deviation.
+        if hasattr(self.cfg, 'commands') and hasattr(self.cfg.commands, 'body_height_command_idx') and hasattr(self.cfg.commands, 'body_height_command_threshold'):
+            cmd_idx = self.cfg.commands.body_height_command_idx
+            if self.commands.shape[1] > cmd_idx:
+                low_height_mask = self.commands[:, cmd_idx] > self.cfg.commands.body_height_command_threshold
+                rew = rew * (~low_height_mask)
+        return rew
 
     # def _reward_base_height(self):
     #     # Penalize base height away from target
@@ -1686,7 +1693,14 @@ class LeggedRobot(BaseTask):
     def _reward_stand_still(self):
         # Penalize motion at zero commands
         # 只有在 command 接近 0 时才启用，防止机器人明明该站住却还在小幅抖腿。
-        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1) * (torch.norm(self.commands[:, :2], dim=1) < 0.1)
+        # Include yaw command so in-place turning does not get misclassified as "zero command".
+        stand_still_mask = torch.norm(self.commands[:, :3], dim=1) < 0.1
+        if hasattr(self.cfg, 'commands') and hasattr(self.cfg.commands, 'body_height_command_idx') and hasattr(self.cfg.commands, 'body_height_command_threshold'):
+            cmd_idx = self.cfg.commands.body_height_command_idx
+            if self.commands.shape[1] > cmd_idx:
+                low_height_mask = self.commands[:, cmd_idx] > self.cfg.commands.body_height_command_threshold
+                stand_still_mask = stand_still_mask & (~low_height_mask)
+        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1) * stand_still_mask
 
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
