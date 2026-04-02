@@ -1,6 +1,6 @@
-# policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/go2_moe_cts_137000_0.6365.pt"
+policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/go2_moe_cts_137000_0.6365.pt"
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/go2_cts_150k.pt"
-policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/exported/policy.onnx"
+# policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/exported/policy.onnx"
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/exported/policy.pt"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/flat.xml"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/race_track.xml"
@@ -14,6 +14,10 @@ simulation_duration: 60000000.0
 simulation_dt: 0.002
 # Controller update frequency (meets the requirement of simulation_dt * controll_decimation=0.02; 50Hz)
 control_decimation: 10
+
+# Viewer camera settings: use XML-defined rigidly bound chase camera.
+viewer_camera_mode: "fixed"
+viewer_camera_name: "chase_cam"
 
 kps: [20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0] 
 kds: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] 

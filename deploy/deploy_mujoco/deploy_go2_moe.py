@@ -82,16 +82,19 @@ if __name__ == "__main__":
     parser.add_argument("--save-video", action="store_true", help="Whether to save video of the simulation.")
     parser.add_argument("--visualize-moe-weights", action="store_true", help="Whether to visualize mixture of experts weights.")
     args = parser.parse_args()
-    save_video = False
-    visualize_moe_weights = True
+    save_video = args.save_video
+    visualize_moe_weights = args.visualize_moe_weights
     config_file = "go2.yaml"
 
     # Pygame 初始化
     pygame.init()
+    pygame.joystick.init()
     
     use_joystick = False
     joystick = None
-    if pygame.joystick.get_count() > 0:
+    joystick_count = pygame.joystick.get_count()
+    print(f"Joystick count: {joystick_count}")
+    if joystick_count > 0:
         joystick = pygame.joystick.Joystick(0)
         joystick.init()
         use_joystick = True
@@ -130,6 +133,8 @@ if __name__ == "__main__":
 
         num_actions = config["num_actions"]
         num_obs = config["num_obs"]
+        viewer_camera_mode = config.get("viewer_camera_mode", "fixed")
+        viewer_camera_name = config.get("viewer_camera_name", "chase_cam")
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
 
@@ -179,25 +184,32 @@ if __name__ == "__main__":
     # 移除了 plt 初始化逻辑
 
     with mujoco.viewer.launch_passive(m, d) as viewer:
-
-        # set viewer.camera to follow robot
-        viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-        viewer.cam.trackbodyid = 1
-        viewer.cam.distance = 3.0
-        viewer.cam.elevation = -30.0
-        viewer.cam.azimuth = 0.0
+        if viewer_camera_mode.lower() == "fixed":
+            cam_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, viewer_camera_name)
+            if cam_id < 0:
+                raise ValueError(
+                    f"camera '{viewer_camera_name}' not found in XML model: {xml_path}. "
+                    "Please add it under robot base body (e.g. chase_cam)."
+                )
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+            viewer.cam.fixedcamid = cam_id
+            print(f"Viewer camera fixed to XML camera '{viewer_camera_name}' (id={cam_id}).")
+        else:
+            raise ValueError(
+                f"Unsupported viewer_camera_mode: {viewer_camera_mode}. "
+                "Supported values: fixed"
+            )
 
         # Close the viewer automatically after simulation_duration wall-seconds.
         start = time.time()
         while viewer.is_running() and time.time() - start < simulation_duration:
             step_start = time.time()
+            # Always pump pygame events to keep joystick state fresh.
+            pygame.event.pump()
 
             if use_joystick and counter % control_decimation == 0:
                 cmd = get_xbox_command(joystick, config["max_cmd"])
                 print(f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}", end='\r')
-            elif visualize_moe_weights and counter % control_decimation == 0:
-                 # 如果没有手柄但开了可视化，也需要 pump 事件，防止窗口卡死
-                 pygame.event.pump()
 
             tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
             d.ctrl[:] = tau
@@ -260,9 +272,9 @@ if __name__ == "__main__":
             viewer.sync()
             
             # 如果需要严格同步时间，可以解开下面的注释
-            # time_until_next_step = m.opt.timestep - (time.time() - step_start)
-            # if time_until_next_step > 0:
-            #     time.sleep(time_until_next_step)
+            time_until_next_step = m.opt.timestep - (time.time() - step_start)
+            if time_until_next_step > 0:
+                time.sleep(time_until_next_step)
 
     if save_video:
         writer.close()

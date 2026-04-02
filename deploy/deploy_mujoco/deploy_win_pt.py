@@ -94,8 +94,6 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
         button_state["a"] = a_pressed
     else:
         command_obs[:3] = 0.0
-    # NoCV 部署沿用 jump 兼容的 8 维 command obs，
-    # 但后 4 维在该任务中应始终为 0，避免配置或上一次状态残留误导策略。
     command_obs[4:] = 0.0
     return command_obs
 
@@ -110,7 +108,7 @@ if __name__ == "__main__":
     save_video = args.save_video
     visualize_moe_weights = args.visualize_moe_weights
     save_moe_latent = args.save_moe_latent
-    config_file = "win_cts.yaml"
+    config_file = "win.yaml"
 
     pygame.init()
     use_joystick = False
@@ -147,6 +145,8 @@ if __name__ == "__main__":
 
         num_actions = config["num_actions"]
         num_obs = config["num_obs"]
+        viewer_camera_mode = config.get("viewer_camera_mode", "fixed")
+        viewer_camera_name = config.get("viewer_camera_name", "chase_cam")
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
 
@@ -227,13 +227,21 @@ if __name__ == "__main__":
         all_latents = []
 
     with mujoco.viewer.launch_passive(m, d) as viewer:
-
-        # set viewer.camera to follow robot
-        viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-        viewer.cam.trackbodyid = 1
-        viewer.cam.distance = 2.0
-        viewer.cam.elevation = -20.0
-        viewer.cam.azimuth = 60.0
+        if viewer_camera_mode.lower() == "fixed":
+            cam_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, viewer_camera_name)
+            if cam_id < 0:
+                raise ValueError(
+                    f"camera '{viewer_camera_name}' not found in XML model: {xml_path}. "
+                    "Please add it under robot base body (e.g. chase_cam)."
+                )
+            viewer.cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+            viewer.cam.fixedcamid = cam_id
+            print(f"Viewer camera fixed to XML camera '{viewer_camera_name}' (id={cam_id}).")
+        else:
+            raise ValueError(
+                f"Unsupported viewer_camera_mode: {viewer_camera_mode}. "
+                "Supported values: fixed"
+            )
 
         # Close the viewer automatically after simulation_duration wall-seconds.
         start = time.time()

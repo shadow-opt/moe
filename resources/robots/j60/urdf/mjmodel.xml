@@ -27,6 +27,8 @@
       <site name="imu_site" pos="0 0 0.05" size="0.01"/>
       <!-- 浮动基座 -->
       <freejoint name="floating_base"/>
+      <!-- Third-person chase camera rigidly attached to base -->
+      <camera name="chase_cam" pos="-2 0 2" xyaxes="0 -1 0 1 0 1"/>
       
       <!-- 主体几何形状（MuJoCo将自动计算惯性） -->
       <geom name="trunk" size="0.171 0.1185 0.0435" type="box" rgba="0.8 0.8 0.8 1" mass="3.728"/>

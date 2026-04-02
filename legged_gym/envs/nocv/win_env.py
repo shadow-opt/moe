@@ -445,3 +445,26 @@ class WINRobot(Go2Robot):
         return penalty * walking_straight_envs.float()
     
         
+    def _reward_foot_slip(self):
+        """
+        [脚底打滑惩罚]
+        触地时如果脚有水平速度则惩罚
+        """
+        # feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
+        feet_xy_vel = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 7:9]
+        contact = self.contact_forces[:, self.feet_indices, 2] > 5.
+        foot_speed_norm = torch.norm(feet_xy_vel, dim=2)
+        rew = torch.sqrt(foot_speed_norm) * contact
+        return torch.sum(rew, dim=1)
+
+    def _reward_progress(self):
+        """
+        轻量的命令方向进展奖励。
+        只鼓励沿当前平移指令方向的正向速度，避免台阶前“停住保平衡”。
+        """
+        cmd_xy = self.commands[:, :2]
+        cmd_norm = torch.norm(cmd_xy, dim=1)
+        move_cmd = cmd_norm > 0.1
+        cmd_dir = cmd_xy / torch.clamp(cmd_norm.unsqueeze(1), min=1e-6)
+        progress_speed = torch.sum(self.base_lin_vel[:, :2] * cmd_dir, dim=1)
+        return torch.relu(progress_speed) * move_cmd.float()
