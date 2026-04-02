@@ -131,7 +131,7 @@ class WINCfg(GO2Cfg):
             ang_vel_xy = -0.5
             stand_still = -1.0
             # orientation = -0.5
-            stumble = -1.
+            stumble = -0.5
             # x_command_hip_regular = -0.5
             
             
