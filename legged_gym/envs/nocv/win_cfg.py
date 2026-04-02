@@ -130,6 +130,7 @@ class WINCfg(GO2Cfg):
             straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.5
             stand_still = -1.0
+            action_smoothness = -0.02
             # orientation = -0.5
             stumble = -0.5
             # x_command_hip_regular = -0.5

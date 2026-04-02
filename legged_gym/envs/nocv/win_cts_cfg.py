@@ -84,7 +84,21 @@ class WINVanillaCTS(WINCTS):
         terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
 
-
+    class rewards(WINCTS.rewards):
+        # 正常档位继续沿用父类中的 `base_height_target`。
+        # 低高度档位下，改为追踪这个更低的目标高度。
+        low_base_height_target = 0.18
+        base_height_target = 0.38
+        # similar_to_default = -0.015
+        class scales(WINCTS.rewards.scales):
+            straight_path = 10.0 # [NOTE] 新增
+            straight_path_deviation = -3 # [NOTE] 新增
+            # ang_vel_xy = -0.5
+            stand_still = -1.0
+            feet_regulation = -0.05
+            # orientation = -0.5
+            stumble = -1
+            # x_command_hip_regular = -0.5
 
 
 class WINCfgCTS(GO2CfgCTS):
