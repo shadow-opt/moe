@@ -105,7 +105,7 @@ class WINCfgCTS(GO2CfgCTS):
 
     class runner(GO2CfgCTS.runner):
         num_steps_per_env = 24
-        run_name = 'cts'
+        run_name = 'v_cts'
         experiment_name = 'win_cts'
         max_iterations = 40000
         save_interval = 5000
