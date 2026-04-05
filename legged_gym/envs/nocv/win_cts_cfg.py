@@ -76,8 +76,8 @@ class WINVanillaCTS(WINCTS):
         special_terrain_options_6 = [6]
         # 对于 stairs up  3
         # 对于 stones 6
-        special_terrain_probs = 1.0
-        special_terrain_command = 1
+        special_terrain_probs = 0.0
+        special_terrain_command = 0
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
     class terrain(WINCTS.terrain):
