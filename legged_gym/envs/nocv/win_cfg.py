@@ -7,8 +7,16 @@ class WINCfg(GO2Cfg):
         turn_over = False
         turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
 
+    class domain_rand(GO2Cfg.domain_rand):
+        randomize_base_mass = True
+        added_mass_range = [-2, 2]
+        randomize_link_mass = True
+        multiplied_link_mass_range = [0.85, 1.15]
+        
+
+
     class asset(GO2Cfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
         foot_name = 'FOOT'
         terminate_after_contacts_on = ["base"]
@@ -131,7 +139,7 @@ class WINCfg(GO2Cfg):
             ang_vel_xy = -0.5
             stand_still = -1.0
             action_smoothness = -0.02
-            progress = 0.5
+            progress = 1
             orientation = -0.1
             stumble = -0.5
             # x_command_hip_regular = -0.5
@@ -145,7 +153,7 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     """
 
     class runner(GO2CfgMoECTS.runner):
-        run_name = ''
+        run_name = 'heavy'
         experiment_name = 'win_moe_cts'
         max_iterations = 80000
         save_interval = 5000
