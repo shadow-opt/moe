@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <robot name="z2">
-
+<!-- package://z2 -->
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/base_link.STL" />
+        <mesh filename="../meshes/base_link.STL" />
       </geometry>
       <material name="base_link_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -28,7 +28,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FL_hip.STL" />
+        <mesh filename="../meshes/FL_hip.STL" />
       </geometry>
       <material name="FL_hip_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -51,7 +51,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FL_thigh.STL" />
+        <mesh filename="../meshes/FL_thigh.STL" />
       </geometry>
       <material name="FL_thigh_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -80,7 +80,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FL_calf.STL" />
+        <mesh filename="../meshes/FL_calf.STL" />
       </geometry>
       <material name="FL_calf_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -103,7 +103,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FL_foot.STL" />
+        <mesh filename="../meshes/FL_foot.STL" />
       </geometry>
       <material name="FL_foot_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -126,7 +126,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FR_hip.STL" />
+        <mesh filename="../meshes/FR_hip.STL" />
       </geometry>
       <material name="FR_hip_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -149,7 +149,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FR_thigh.STL" />
+        <mesh filename="../meshes/FR_thigh.STL" />
       </geometry>
       <material name="FR_thigh_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -178,7 +178,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FR_calf.STL" />
+        <mesh filename="../meshes/FR_calf.STL" />
       </geometry>
       <material name="FR_calf_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -201,7 +201,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/FR_foot.STL" />
+        <mesh filename="../meshes/FR_foot.STL" />
       </geometry>
       <material name="FR_foot_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -224,7 +224,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RL_hip.STL" />
+        <mesh filename="../meshes/RL_hip.STL" />
       </geometry>
       <material name="RL_hip_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -247,7 +247,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RL_thigh.STL" />
+        <mesh filename="../meshes/RL_thigh.STL" />
       </geometry>
       <material name="RL_thigh_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -276,7 +276,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RL_calf.STL" />
+        <mesh filename="../meshes/RL_calf.STL" />
       </geometry>
       <material name="RL_calf_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -299,7 +299,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RL_foot.STL" />
+        <mesh filename="../meshes/RL_foot.STL" />
       </geometry>
       <material name="RL_foot_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -322,7 +322,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RR_hip.STL" />
+        <mesh filename="../meshes/RR_hip.STL" />
       </geometry>
       <material name="RR_hip_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -345,7 +345,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RR_thigh.STL" />
+        <mesh filename="../meshes/RR_thigh.STL" />
       </geometry>
       <material name="RR_thigh_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -374,7 +374,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RR_calf.STL" />
+        <mesh filename="../meshes/RR_calf.STL" />
       </geometry>
       <material name="RR_calf_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
@@ -397,7 +397,7 @@
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <mesh filename="package://z2/meshes/RR_foot.STL" />
+        <mesh filename="../meshes/RR_foot.STL" />
       </geometry>
       <material name="RR_foot_mat">
         <color rgba="0.74902353 0.74902353 0.74902353 1.00000000"/>
