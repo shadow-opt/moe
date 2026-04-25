@@ -24,7 +24,7 @@ class WINCfg(GO2Cfg):
         terminate_after_contacts_on = ["base"]
         penalize_contacts_on = ["thigh", "calf", "hip"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
-        flip_visual_attachments = True
+        flip_visual_attachments = False
 
     class control(GO2Cfg.control):
         """底层控制器配置。
