@@ -261,9 +261,9 @@ if __name__ == "__main__":
             viewer.sync()
 
             # Rudimentary time keeping, will drift relative to wall clock.
-            # time_until_next_step = m.opt.timestep - (time.time() - step_start) - 0.1
-            # if time_until_next_step > 0:
-            #     time.sleep(time_until_next_step)
+            time_until_next_step = m.opt.timestep - (time.time() - step_start)
+            if time_until_next_step > 0:
+                time.sleep(time_until_next_step)
 
     # writer.close()
     if save_video:

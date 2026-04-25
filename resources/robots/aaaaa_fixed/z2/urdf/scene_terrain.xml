@@ -1,5 +1,5 @@
 <mujoco model="z2 scene">
-  <include file="mjmodel_heavy copy.xml" />
+  <include file="z2.xml" />
 
   <statistic center="0 0 0.1" extent="0.8" />
 

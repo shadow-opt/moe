@@ -1,5 +1,5 @@
 <mujoco model="cross_stairs_1_4_7_10">
-  <include file="mjmodel_heavy.xml"/>
+  <include file="z2.xml"/>
   <!-- Terrain Type: cross_stairs, Level: 1_4_7_10, Cross Layout: Center Gap 2.0m. Arch step height: 0.0800 Arch step height: 0.2000 Arch step height: 0.2300 Arch step height: 0.1700 -->
   <statistic center="0 0 0.1" extent="0.8" />
   <visual>

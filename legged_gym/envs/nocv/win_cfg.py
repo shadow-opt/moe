@@ -16,7 +16,9 @@ class WINCfg(GO2Cfg):
 
 
     class asset(GO2Cfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
+        
+        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
         foot_name = 'FOOT'
         terminate_after_contacts_on = ["base"]
@@ -134,15 +136,16 @@ class WINCfg(GO2Cfg):
         base_height_target = 0.38
         similar_to_default = -0.015
         class scales(GO2Cfg.rewards.scales):
-            straight_path = 10.0 # [NOTE] 新增
-            straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -0.5
+            # straight_path = 10.0 # [NOTE] 新增
+            # straight_path_deviation = -3 # [NOTE] 新增
+            ang_vel_xy = -3
             stand_still = -1.0
-            action_smoothness = -0.02
+            action_smoothness = -0.04
             progress = 1
-            orientation = -0.1
-            stumble = -0.5
-            # x_command_hip_regular = -0.5
+            
+            # orientation = -0.1
+            # stumble = -0.5
+            x_command_hip_regular = -1
             
             
             
@@ -155,5 +158,5 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = 'heavy'
         experiment_name = 'win_moe_cts'
-        max_iterations = 80000
-        save_interval = 5000
+        max_iterations = 70000
+        save_interval = 10000

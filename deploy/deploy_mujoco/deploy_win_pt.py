@@ -46,6 +46,11 @@ def pd_control(target_q, q, kp, target_dq, dq, kd):
     """Calculates torques from position commands"""
     return (target_q - q) * kp + (target_dq - dq) * kd
 
+
+def reorder_by_joint_names(values, source_joint_names, target_joint_names):
+    source_indices = {joint_name: index for index, joint_name in enumerate(source_joint_names)}
+    return np.asarray(values, dtype=np.float32)[[source_indices[joint_name] for joint_name in target_joint_names]]
+
 def get_xbox_command(joystick, max_cmd):
     pygame.event.pump()
     dead_zone = 0.1
@@ -101,6 +106,7 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--config", type=str, default="win.yaml", help="Config file name under deploy/deploy_mujoco/configs")
     parser.add_argument("--save-video", action="store_true", help="Whether to save video of the simulation.")
     parser.add_argument("--visualize-moe-weights", action="store_true", help="Whether to visualize mixture of experts weights.")
     parser.add_argument("--save-moe-latent", action="store_true", help="Whether to save mixture of experts latent vectors.")
@@ -108,8 +114,8 @@ if __name__ == "__main__":
     save_video = args.save_video
     visualize_moe_weights = args.visualize_moe_weights
     save_moe_latent = args.save_moe_latent
-    config_file = "win.yaml"
-
+    config_file = args.config
+    # config_file = "win_go2.yaml"
     pygame.init()
     use_joystick = False
     joystick = None
@@ -122,7 +128,9 @@ if __name__ == "__main__":
     else:
         print("No Joystick detected. Using default commands from config.")
 
-    with open(f"{LEGGED_GYM_ROOT_DIR}/deploy/deploy_mujoco/configs/{config_file}", "r") as f:
+    config_path = f"{LEGGED_GYM_ROOT_DIR}/deploy/deploy_mujoco/configs/{config_file}"
+    print(f"Loading config: {config_path}")
+    with open(config_path, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
         policy_path = config["policy_path"].replace("{LEGGED_GYM_ROOT_DIR}", LEGGED_GYM_ROOT_DIR)
         xml_path = config["xml_path"].replace("{LEGGED_GYM_ROOT_DIR}", LEGGED_GYM_ROOT_DIR)
@@ -150,12 +158,11 @@ if __name__ == "__main__":
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
 
-        idx_model2mj = idx_mj2model = list(range(num_actions))
+        config_mujoco_joint_names = None
+        model_joint_names = None
         if 'mujoco_joint_names' in config and 'model_joint_names' in config:
-            mujoco_joint_names = config["mujoco_joint_names"]
+            config_mujoco_joint_names = config["mujoco_joint_names"]
             model_joint_names = config["model_joint_names"]
-            idx_model2mj = [model_joint_names.index(joint) for joint in mujoco_joint_names]
-            idx_mj2model = [mujoco_joint_names.index(joint) for joint in model_joint_names]
 
     if len(default_angles) != num_actions:
         raise ValueError(f"default_angles len {len(default_angles)} != num_actions {num_actions}")
@@ -168,13 +175,6 @@ if __name__ == "__main__":
     expected_num_obs = 3 + 3 + len(cmd) + 3 * num_actions
     if num_obs != expected_num_obs:
         raise ValueError(f"num_obs mismatch: config={num_obs}, expected={expected_num_obs}")
-    if len(idx_model2mj) != num_actions or len(idx_mj2model) != num_actions:
-        raise ValueError(
-            f"joint index map len mismatch: len(idx_model2mj)={len(idx_model2mj)}, "
-            f"len(idx_mj2model)={len(idx_mj2model)}, num_actions={num_actions}"
-        )
-    print(f"Joint map model->mj: {idx_model2mj}")
-    print(f"Joint map mj->model: {idx_mj2model}")
 
     video_save_dir = str(PATH_PARENT / "videos")
     os.makedirs(video_save_dir, exist_ok=True)
@@ -194,6 +194,56 @@ if __name__ == "__main__":
     m = mujoco.MjModel.from_xml_path(xml_path)
     d = mujoco.MjData(m)
     m.opt.timestep = simulation_dt
+
+    qpos_joint_names = [
+        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, joint_id)
+        for joint_id in range(m.njnt)
+        if m.jnt_type[joint_id] != mujoco.mjtJoint.mjJNT_FREE
+    ]
+    actuator_joint_names = [
+        mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, m.actuator_trnid[actuator_id, 0])
+        for actuator_id in range(m.nu)
+    ]
+    if model_joint_names is None:
+        model_joint_names = qpos_joint_names
+    if config_mujoco_joint_names is None:
+        config_mujoco_joint_names = qpos_joint_names
+    if len(qpos_joint_names) != num_actions or len(actuator_joint_names) != num_actions:
+        raise ValueError(
+            f"XML joint/actuator count mismatch: len(qpos_joint_names)={len(qpos_joint_names)}, "
+            f"len(actuator_joint_names)={len(actuator_joint_names)}, num_actions={num_actions}"
+        )
+    if set(model_joint_names) != set(qpos_joint_names):
+        raise ValueError(
+            f"model_joint_names mismatch with XML qpos joints: model_joint_names={model_joint_names}, "
+            f"qpos_joint_names={qpos_joint_names}"
+        )
+    if set(config_mujoco_joint_names) != set(qpos_joint_names):
+        raise ValueError(
+            f"config mujoco_joint_names mismatch with XML qpos joints: "
+            f"config_mujoco_joint_names={config_mujoco_joint_names}, qpos_joint_names={qpos_joint_names}"
+        )
+    if set(actuator_joint_names) != set(qpos_joint_names):
+        raise ValueError(
+            f"XML actuator joints mismatch with XML qpos joints: actuator_joint_names={actuator_joint_names}, "
+            f"qpos_joint_names={qpos_joint_names}"
+        )
+
+    idx_model2qpos = [model_joint_names.index(joint) for joint in qpos_joint_names]
+    idx_qpos2model = [qpos_joint_names.index(joint) for joint in model_joint_names]
+    idx_ctrl_from_qpos = [qpos_joint_names.index(joint) for joint in actuator_joint_names]
+
+    default_angles = reorder_by_joint_names(default_angles, config_mujoco_joint_names, qpos_joint_names)
+    kps = reorder_by_joint_names(kps, config_mujoco_joint_names, qpos_joint_names)
+    kds = reorder_by_joint_names(kds, config_mujoco_joint_names, qpos_joint_names)
+
+    print(f"XML qpos joint order: {qpos_joint_names}")
+    print(f"XML actuator joint order: {actuator_joint_names}")
+    print(f"Model joint order: {model_joint_names}")
+    print(f"Model->qpos map: {idx_model2qpos}")
+    print(f"Qpos->model map: {idx_qpos2model}")
+    print(f"Qpos->ctrl map: {idx_ctrl_from_qpos}")
+    print(f"default_angles in qpos order: {default_angles.tolist()}")
 
     renderer = mujoco.Renderer(m, height=360, width=640)
     
@@ -260,7 +310,7 @@ if __name__ == "__main__":
                 print(show_str, end='\r')
 
             tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
-            d.ctrl[:] = tau
+            d.ctrl[:] = tau[idx_ctrl_from_qpos]
             # mj_step can be replaced with code that also evaluates
             # a policy and applies a control signal before stepping the physics.
             mujoco.mj_step(m, d)
@@ -296,9 +346,9 @@ if __name__ == "__main__":
                 obs[:3] = ang_vel
                 obs[3:6] = gravity_orientation
                 obs[6:12] = cmd * cmd_scale
-                obs[12 : 12 + num_actions] = qj[idx_mj2model]
-                obs[12 + num_actions : 12 + 2 * num_actions] = dqj[idx_mj2model]
-                obs[12 + 2 * num_actions : 12 + 3 * num_actions] = action[idx_mj2model]
+                obs[12 : 12 + num_actions] = qj[idx_qpos2model]
+                obs[12 + num_actions : 12 + 2 * num_actions] = dqj[idx_qpos2model]
+                obs[12 + 2 * num_actions : 12 + 3 * num_actions] = action
                 
                 
                 
@@ -308,7 +358,7 @@ if __name__ == "__main__":
                 result = policy(obs_tensor)
                 if isinstance(result, tuple):
                     action, (weights, latent) = result  # moe
-                    action = action.detach().numpy().squeeze()[idx_model2mj]
+                    action = action.detach().cpu().numpy().squeeze()
                     # weights = weights.detach().numpy().squeeze()
                     latent = latent.detach().numpy().squeeze()
                     if visualize_moe_weights:
@@ -325,9 +375,9 @@ if __name__ == "__main__":
                     if save_moe_latent:
                         all_latents.append(latent)
                 else:
-                    action = result.detach().cpu().numpy().squeeze()[idx_model2mj]
+                    action = result.detach().cpu().numpy().squeeze()
                 # transform action to target_dof_pos
-                target_dof_pos = action * action_scale + default_angles
+                target_dof_pos = action[idx_model2qpos] * action_scale + default_angles
 
             # Pick up changes to the physics state, apply perturbations, update options from GUI.
             mujoco_render_utils.update_external_rendering(viewer, ctype='viewer')
