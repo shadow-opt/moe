@@ -17,6 +17,7 @@ class WINCfg(GO2Cfg):
 
     class asset(GO2Cfg.asset):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
+        collapse_fixed_joints = False
         
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
