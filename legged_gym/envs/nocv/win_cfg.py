@@ -6,6 +6,22 @@ class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
         turn_over = False
         turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0,   # [rad]
+            'RL_hip_joint': 0,   # [rad]
+            'FR_hip_joint': 0 ,  # [rad]
+            'RR_hip_joint': 0,   # [rad]
+
+            'FL_thigh_joint': 0.65,     # [rad]
+            'RL_thigh_joint': 0.65,   # [rad]
+            'FR_thigh_joint': 0.65,     # [rad]
+            'RR_thigh_joint': 0.65,   # [rad]
+
+            'FL_calf_joint': -1.05,   # [rad]
+            'RL_calf_joint': -1.05,    # [rad]
+            'FR_calf_joint': -1.05,  # [rad]
+            'RR_calf_joint': -1.05,    # [rad]
+        }
 
     class domain_rand(GO2Cfg.domain_rand):
         randomize_base_mass = True
