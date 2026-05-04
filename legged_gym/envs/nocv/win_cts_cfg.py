@@ -93,12 +93,7 @@ class WINVanillaCTS(WINCTS):
         class scales(WINCTS.rewards.scales):
             straight_path = 10.0 # [NOTE] 新增
             straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -3
-            stand_still = -1.0
-            feet_regulation = -0.05
-            # orientation = -0.5
-            # stumble = -1
-            x_command_hip_regular = -0.5
+
 
 
 class WINCfgCTS(GO2CfgCTS):
