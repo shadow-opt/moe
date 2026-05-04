@@ -87,8 +87,8 @@ class WINVanillaCTS(WINCTS):
     class rewards(WINCTS.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.18
-        base_height_target = 0.38
+        # low_base_height_target = 0.18
+        # base_height_target = 0.38
         # similar_to_default = -0.015
         class scales(WINCTS.rewards.scales):
             straight_path = 10.0 # [NOTE] 新增

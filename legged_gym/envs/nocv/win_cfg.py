@@ -150,7 +150,7 @@ class WINCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.2
-        base_height_target = 0.39
+        base_height_target = 0.40
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
