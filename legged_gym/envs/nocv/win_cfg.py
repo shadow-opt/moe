@@ -133,17 +133,24 @@ class WINCfg(GO2Cfg):
     class rewards(GO2Cfg.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.18
-        base_height_target = 0.38
-        similar_to_default = -0.015
+        low_base_height_target = 0.2
+        base_height_target = 0.39
+        curriculum_rewards = [
+            {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 20.0},
+            {'reward_name': 'foot_slip', 'start_iter': 0, 'end_iter': 10000, 'start_value': 1.0, 'end_value': 20.0},
+            # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
+            # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+        ]
         class scales(GO2Cfg.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -3
+            ang_vel_xy = -0.5
             stand_still = -1.0
-            action_smoothness = -0.04
-            progress = 1
-            
+            action_smoothness = -0.006
+            foot_slip = -0.4
+                
             # orientation = -0.1
             # stumble = -0.5
             x_command_hip_regular = -1
@@ -157,7 +164,7 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     """
 
     class runner(GO2CfgMoECTS.runner):
-        run_name = 'heavy'
+        run_name = 'new_inertial'
         experiment_name = 'win_moe_cts'
-        max_iterations = 70000
+        max_iterations = 80000
         save_interval = 10000
