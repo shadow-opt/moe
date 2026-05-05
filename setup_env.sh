@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    printf '\n\033[1;31m[error]\033[0m Please run this script with: bash setup_env.sh\n' >&2
+    printf 'Do not use "source setup_env.sh"; this installer uses conda run and does not need to activate the environment.\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 ENV_NAME="${ENV_NAME:-moe}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.8}"
 TORCH_VERSION="${TORCH_VERSION:-2.3.1}"
@@ -15,6 +21,7 @@ ISAAC_GYM_URL="${ISAAC_GYM_URL:-https://developer.nvidia.com/isaac-gym-preview-4
 ISAAC_GYM_ARCHIVE="${ISAAC_GYM_ARCHIVE:-}"
 DOWNLOAD_ISAAC_GYM=1
 INSTALL_MINICONDA=1
+CONDA_CHECK_TIMEOUT="${CONDA_CHECK_TIMEOUT:-60}"
 
 usage() {
     cat <<EOF
@@ -154,7 +161,11 @@ ensure_conda() {
 }
 
 conda_env_exists() {
-    "${CONDA_EXE}" env list | awk '{print $1}' | grep -Fxq "${ENV_NAME}"
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "${CONDA_CHECK_TIMEOUT}" "${CONDA_EXE}" env list | awk '{print $1}' | grep -Fxq "${ENV_NAME}"
+    else
+        "${CONDA_EXE}" env list | awk '{print $1}' | grep -Fxq "${ENV_NAME}"
+    fi
 }
 
 conda_run() {
@@ -165,6 +176,7 @@ ensure_conda_env() {
     if conda_env_exists; then
         log "Conda environment '${ENV_NAME}' already exists"
     else
+        log "Conda environment '${ENV_NAME}' not found; creating it now"
         log "Creating Conda environment '${ENV_NAME}' with Python ${PYTHON_VERSION}"
         run "${CONDA_EXE}" create -y -n "${ENV_NAME}" "python=${PYTHON_VERSION}"
     fi
@@ -285,14 +297,19 @@ install_editable_packages() {
 }
 
 verify_install() {
-    log "Verifying Python imports"
+    log "Verifying installed packages"
     conda_run python -c '
 import importlib
+import importlib.util
 
-for name in ("torch", "isaacgym", "rsl_rl", "legged_gym", "mujoco"):
-    mod = importlib.import_module(name)
-    version = getattr(mod, "__version__", "ok")
-    print(f"{name}: {version}")
+for name in ("isaacgym", "rsl_rl", "legged_gym", "mujoco"):
+    spec = importlib.util.find_spec(name)
+    if spec is None:
+        raise ModuleNotFoundError(name)
+    print(f"{name}: {spec.origin or spec.submodule_search_locations}")
+
+torch = importlib.import_module("torch")
+print(f"torch: {torch.__version__}")
 '
 }
 

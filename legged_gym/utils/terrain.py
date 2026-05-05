@@ -142,16 +142,32 @@ class Terrain:
         elif choice < self.proportions[6]:
             terrain.terrain_name = "stones"
             terrain.terrain_id = 6
-            # terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
+            terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
             stone_terrain(terrain, step_width=0.31, step_height=step_height*0.3, platform_size=2.)
             terrain_utils.wave_terrain(terrain, num_waves=5, amplitude=amplitude)
+            
+
+
             # terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
             # terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[7]:  # 间隙
             terrain.terrain_name = "gap"
             terrain.terrain_id = 7
+
+            bridge_cfg = plank_bridge_curriculum(difficulty, terrain.horizontal_scale)
+            plank_bridge_terrain(
+                terrain,
+                gap_size=bridge_cfg["gap_size"],
+                plank_length=bridge_cfg["plank_length"],
+                plank_width=bridge_cfg["plank_width"],
+                height=0.0,
+                pit_depth=bridge_cfg["pit_depth"],
+                platform_len=bridge_cfg["platform_len"],
+            )
+
+
             # gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
-            gap_plus_terrain(terrain, gap_size=gap_size)
+            # gap_plus_terrain(terrain, gap_size=gap_size)
         else:  # 平地
             terrain.terrain_name = "flat"
             terrain.terrain_id = 8
@@ -257,4 +273,83 @@ def stone_terrain(terrain, step_width, step_height, platform_size=2.):
         stop_y -= step_width
         height = -height
         terrain.height_field_raw[start_x: stop_x, start_y: stop_y] = height
+    return terrain
+
+
+def plank_bridge_curriculum(difficulty, horizontal_scale):
+    """Smooth curriculum for proprioceptive-only policy.
+
+    Difficulty in [0, 1]:
+    1) Warmup: keep gap=0 for stable early learning.
+    2) Ramp: smoothstep increases gap and gently tightens geometry.
+    """
+    d = float(np.clip(difficulty, 0.0, 1.0))
+    warmup = 0.0
+    if d <= warmup:
+        progress = 0.2
+    else:
+        t = (d - warmup) / (1.0 - warmup)
+        progress = t * t * (3.0 - 2.0 * t)  # smoothstep
+
+    # Quantized by terrain horizontal resolution (typically 0.1 m).
+    raw_gap = 0.20 * progress
+    gap_pixels = int(np.round(raw_gap / horizontal_scale))
+    gap_size = gap_pixels * horizontal_scale
+
+    return {
+        "gap_size": gap_size,                             # 0.0 -> 0.1 -> 0.2
+        "plank_length": 0.80 - 0.30 * progress,          # 0.80 -> 0.50
+        "plank_width": 4.80, # - 1.20 * progress,            4.8
+        "platform_len": 2.40 - 0.40 * progress,          # 2.40 -> 2.00
+        "pit_depth": 0.60 + 1.40 * progress,             # 0.60 -> 2.00
+    }
+
+
+def plank_bridge_terrain(terrain, gap_size=0.15, plank_length=0.5, plank_width=1.0, height=0.5, pit_depth=2.0, platform_len=2.0):
+    """
+    生成木板桥地形，并在中心保留出生平台
+    :param terrain: 地形对象
+    :param gap_size: 木板间的空隙 [m]
+    :param plank_length: 木板长度 [m]
+    :param plank_width: 木板宽度 [m]
+    :param height: 木板高度 [m]
+    :param pit_depth: 缝隙深度 [m]
+    :param platform_len: 中心出生平台的长度 [m] (机器人出生在中心，必须留平地)
+    """
+    # 1. 坐标转换
+    gap_pixels = max(0, int(np.round(gap_size / terrain.horizontal_scale)))
+    plank_len_pixels = max(1, int(plank_length / terrain.horizontal_scale))
+    width_pixels = max(1, int(plank_width / terrain.horizontal_scale))
+    height_raw = max(0, int(height / terrain.vertical_scale))
+    platform_pixels = max(1, int(platform_len / terrain.horizontal_scale))
+    
+    # 2. 初始化为地面高度（不悬空）
+    pit_depth_raw = int(pit_depth / terrain.vertical_scale)
+    terrain.height_field_raw[:, :] = height_raw
+
+    # 3. 计算桥的Y轴范围 (宽度)
+    mid_y = terrain.width // 2
+    y_start = max(0, mid_y - width_pixels // 2)
+    y_end = min(terrain.width, mid_y + width_pixels // 2)
+
+    # 4. 在桥宽范围内按周期挖缝隙（缝隙下沉，木板保持地面高度）
+    if gap_pixels > 0:
+        current_x = plank_len_pixels
+        while current_x < terrain.length:
+            gap_end = min(current_x + gap_pixels, terrain.length)
+            terrain.height_field_raw[current_x:gap_end, y_start:y_end] = -pit_depth_raw
+            current_x += plank_len_pixels + gap_pixels
+
+    # 5. 强制填平中心区域作为出生点
+    mid_x = terrain.length // 2
+    plat_start = mid_x - platform_pixels // 2
+    plat_end = mid_x + platform_pixels // 2
+    
+    # 边界保护
+    plat_start = max(0, plat_start)
+    plat_end = min(terrain.length, plat_end)
+    
+    # 将中心区域强制设为平地高度，覆盖掉可能存在的间隙
+    terrain.height_field_raw[plat_start:plat_end, y_start:y_end] = height_raw
+
     return terrain

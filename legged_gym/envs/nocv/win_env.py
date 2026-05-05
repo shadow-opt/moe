@@ -1,6 +1,7 @@
 import torch 
 
 from legged_gym.envs.go2.go2_env import Go2Robot
+from legged_gym.utils.isaacgym_utils import sample_disjoint_intervals, sample_single_interval
 
 class WINRobot(Go2Robot):
     """
@@ -11,7 +12,7 @@ class WINRobot(Go2Robot):
     - `commands[:, 3]`: `heading`（保持与基类兼容）
     - `commands[:, 4]`: `body_height_mode`
     - `commands[:, 5]`: `stairs_mode`
-    - `commands[:, 6]`: `stone_mode`
+    - `commands[:, 6]`: `gap_mode`
     """
     def __init__(self, cfg, sim_params, physics_engine, sim_device, headless):
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
@@ -30,6 +31,11 @@ class WINRobot(Go2Robot):
             )
         
         self.body_height_command_idx = self.cfg.commands.body_height_command_idx
+        if not 0 <= self.body_height_command_idx < self.commands.shape[1]:
+            raise RuntimeError(
+                f"body_height_command_idx={self.body_height_command_idx} is out of range for "
+                f"commands with shape {self.commands.shape}"
+            )
         self.body_height_command_threshold = self.cfg.commands.body_height_command_threshold
         
 
@@ -39,6 +45,9 @@ class WINRobot(Go2Robot):
         self.special_terrain_command_threshold = (
             self.cfg.commands.normal_terrain_command
             + 0.5 * (self.cfg.commands.special_terrain_command - self.cfg.commands.normal_terrain_command)
+        )
+        self.has_distinct_special_terrain_command = (
+            self.cfg.commands.special_terrain_command != self.cfg.commands.normal_terrain_command
         )
 
         self.commands_scale = torch.tensor(
@@ -77,7 +86,12 @@ class WINRobot(Go2Robot):
             dtype=torch.float,
             device=self.device,
             requires_grad=False,
-        )    
+        )
+        if self.low_height_command_velocity_scale.numel() != 3:
+            raise RuntimeError(
+                "low_height_command_velocity_scale must contain exactly "
+                f"3 values for x/y/yaw, got {self.low_height_command_velocity_scale}"
+            )
         
     def _get_noise_scale_vec(self, cfg):
         """构造 WIN 的 actor observation 噪声向量。
@@ -211,17 +225,21 @@ class WINRobot(Go2Robot):
 
 
     # useless but reserved for future use
+    def _is_special_terrain_command(self, command_values):
+        """按 normal/special 的相对大小判断特殊 terrain command 是否激活。"""
+        if not self.has_distinct_special_terrain_command:
+            return torch.zeros_like(command_values, dtype=torch.bool)
+        if self.cfg.commands.special_terrain_command > self.cfg.commands.normal_terrain_command:
+            return command_values > self.special_terrain_command_threshold
+        return command_values < self.special_terrain_command_threshold
+
     def _get_is_special_terrain_5_command_mask(self):
         """返回当前哪些 env 正在执行 stairs up/down/obstacles 5 的特殊指令。"""
-        return self._get_special_terrain_5_mask() & (
-            self.commands[:, 5] > self.special_terrain_command_threshold
-        )
+        return self._get_special_terrain_5_mask() & self._is_special_terrain_command(self.commands[:, 5])
     # useless but reserved for future use
     def _get_is_special_terrain_6_command_mask(self):
         """返回当前哪些 env 正在执行 stones 6 的特殊指令。"""
-        return self._get_special_terrain_6_mask() & (
-            self.commands[:, 6] > self.special_terrain_command_threshold
-        )
+        return self._get_special_terrain_6_mask() & self._is_special_terrain_command(self.commands[:, 6])
     
     
 
@@ -239,7 +257,21 @@ class WINRobot(Go2Robot):
         if len(env_ids) == 0:
             return
 
-        self.commands[env_ids, :3] *= self.low_height_command_velocity_scale.unsqueeze(0)
+        velocity_dims = 2 if self.cfg.commands.heading_command else 3
+        self.commands[env_ids, :velocity_dims] *= self.low_height_command_velocity_scale[:velocity_dims].unsqueeze(0)
+
+    def _apply_low_height_heading_yaw_limit(self):
+        """heading mode 下，父类每步重算 yaw 后再补一次低高度 yaw 限速。"""
+        if not self.cfg.commands.heading_command:
+            return
+
+        low_height_mask = self._get_is_low_height_command_mask() & ~self.stop_heading
+        if low_height_mask.any():
+            self.commands[low_height_mask, 2] *= self.low_height_command_velocity_scale[2]
+
+    def _post_physics_step_callback(self):
+        super()._post_physics_step_callback()
+        self._apply_low_height_heading_yaw_limit()
 
 
     def compute_observations(self):
@@ -298,36 +330,212 @@ class WINRobot(Go2Robot):
 
 
     def _resample_commands(self, env_ids):
-
-        super()._resample_commands(env_ids)
         if len(env_ids) == 0:
             return
+
+        self.stop_heading[env_ids] = False
+
+        if len(self.cfg.commands.command_range_curriculum):
+            current_iter = self.common_step_counter // self.num_steps_per_env
+            for i in range(len(self.cfg.commands.command_range_curriculum) - 1, -1, -1):
+                cfg = self.cfg.commands.command_range_curriculum[i]
+                if current_iter >= cfg["iter"]:
+                    self.command_ranges["lin_vel_x"] = cfg["lin_vel_x"]
+                    self.command_ranges["lin_vel_y"] = cfg["lin_vel_y"]
+                    self.command_ranges["ang_vel_yaw"] = cfg["ang_vel_yaw"]
+                    self.command_ranges["heading"] = cfg["heading"]
+                    self.max_lin_vel = max(
+                        abs(self.command_ranges["lin_vel_x"][0]),
+                        abs(self.command_ranges["lin_vel_x"][1]),
+                        abs(self.command_ranges["lin_vel_y"][0]),
+                        abs(self.command_ranges["lin_vel_y"][1]),
+                    )
+                    self.cfg.commands.command_range_curriculum.pop(i)
+                    self._update_env_command_ranges()
+                    print(f"Command range updated at iter {current_iter}: {self.command_ranges}")
+
+        remaining_dist = torch.clip(
+            0.625 * self.cfg.terrain.terrain_length
+            - torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * self.cfg.commands.resampling_time,
+            0.0,
+        )
+        self.commands_resampling_step[env_ids] = self.cfg.commands.resampling_time / self.dt
+
+        if self.cfg.commands.dynamic_resample_commands:
+            if ((self.max_episode_length - self.episode_length_buf[env_ids]) == 0).any():
+                raise ValueError("Some envs have zero remaining episode length during command resampling")
+
+            vel_low_bound = torch.clip(
+                remaining_dist
+                / ((self.max_episode_length - self.episode_length_buf[env_ids] + 1e-9) * self.dt),
+                0.0,
+            )
+            self.commands[env_ids, 0] = sample_disjoint_intervals(
+                env_ids,
+                vel_low_bound,
+                self.env_command_ranges["lin_vel_x"][env_ids, 0],
+                self.env_command_ranges["lin_vel_x"][env_ids, 1],
+                self.device,
+            )
+            self.commands[env_ids, 1] = sample_disjoint_intervals(
+                env_ids,
+                vel_low_bound,
+                self.env_command_ranges["lin_vel_y"][env_ids, 0],
+                self.env_command_ranges["lin_vel_y"][env_ids, 1],
+                self.device,
+            )
+            if self.cfg.commands.heading_command:
+                r = torch.rand(len(env_ids), device=self.device)
+                lower = self.env_command_ranges["heading"][env_ids, 0]
+                upper = self.env_command_ranges["heading"][env_ids, 1]
+                self.commands[env_ids, 3] = (upper - lower) * r + lower
+            else:
+                r = torch.rand(len(env_ids), device=self.device)
+                lower = self.env_command_ranges["ang_vel_yaw"][env_ids, 0]
+                upper = self.env_command_ranges["ang_vel_yaw"][env_ids, 1]
+                self.commands[env_ids, 2] = (upper - lower) * r + lower
+        else:
+            self.commands[env_ids, 0] = sample_single_interval(
+                env_ids,
+                self.env_command_ranges["lin_vel_x"][env_ids, 0],
+                self.env_command_ranges["lin_vel_x"][env_ids, 1],
+                self.device,
+            )
+            self.commands[env_ids, 1] = sample_single_interval(
+                env_ids,
+                self.env_command_ranges["lin_vel_y"][env_ids, 0],
+                self.env_command_ranges["lin_vel_y"][env_ids, 1],
+                self.device,
+            )
+            if self.cfg.commands.heading_command:
+                self.commands[env_ids, 3] = sample_single_interval(
+                    env_ids,
+                    self.env_command_ranges["heading"][env_ids, 0],
+                    self.env_command_ranges["heading"][env_ids, 1],
+                    self.device,
+                )
+            else:
+                self.commands[env_ids, 2] = sample_single_interval(
+                    env_ids,
+                    self.env_command_ranges["ang_vel_yaw"][env_ids, 0],
+                    self.env_command_ranges["ang_vel_yaw"][env_ids, 1],
+                    self.device,
+                )
+
+            self.commands[env_ids, :2] *= (torch.norm(self.commands[env_ids, :2], dim=1) > 0.2).unsqueeze(1)
+
+        rand_prob = torch.rand(len(env_ids), device=self.device)
+        min_prob, max_prob = 0.0, 0.0
+
+        if self.limit_vel_prob > 0.0:
+            max_prob += self.limit_vel_prob
+            lim_mask = (rand_prob >= min_prob) * (rand_prob < max_prob)
+            lim_env_ids = env_ids[lim_mask]
+            if len(lim_env_ids) > 0:
+                change_lim_env_ids = lim_env_ids
+                if self.cfg.commands.limit_vel_invert_when_continuous:
+                    was_limited = self.last_is_limit_vel[lim_env_ids]
+                    invert_env_ids = lim_env_ids[was_limited]
+                    self.commands[invert_env_ids, 0] *= -1.0
+                    self.commands[invert_env_ids, 1] *= -1.0
+                    self.commands[invert_env_ids, 2] *= -1.0
+                    change_lim_env_ids = lim_env_ids[~was_limited]
+
+                vel_idx = torch.randint(0, self.limit_vel_comb.shape[0], (len(change_lim_env_ids),), device=self.device)
+                lin_vel_x_lim = torch.where(
+                    self.limit_vel_comb[vel_idx, 0] == -1,
+                    self.env_command_ranges["lin_vel_x"][change_lim_env_ids, 0],
+                    self.env_command_ranges["lin_vel_x"][change_lim_env_ids, 1],
+                )
+                lin_vel_x_lim[self.limit_vel_comb[vel_idx, 0] == 0] = 0.0
+                lin_vel_y_lim = torch.where(
+                    self.limit_vel_comb[vel_idx, 1] == -1,
+                    self.env_command_ranges["lin_vel_y"][change_lim_env_ids, 0],
+                    self.env_command_ranges["lin_vel_y"][change_lim_env_ids, 1],
+                )
+                lin_vel_y_lim[self.limit_vel_comb[vel_idx, 1] == 0] = 0.0
+                ang_vel_z_lim = torch.where(
+                    self.limit_vel_comb[vel_idx, 2] == -1,
+                    self.env_command_ranges["ang_vel_yaw"][change_lim_env_ids, 0],
+                    self.env_command_ranges["ang_vel_yaw"][change_lim_env_ids, 1],
+                )
+                ang_vel_z_lim[self.limit_vel_comb[vel_idx, 2] == 0] = 0.0
+                self.commands[change_lim_env_ids, 0] = lin_vel_x_lim
+                self.commands[change_lim_env_ids, 1] = lin_vel_y_lim
+                self.commands[change_lim_env_ids, 2] = ang_vel_z_lim
+                if self.cfg.commands.heading_command and self.cfg.commands.stop_heading_at_limit:
+                    self.stop_heading[lim_env_ids] = True
+                self.last_is_limit_vel[env_ids] = False
+                self.last_is_limit_vel[lim_env_ids] = True
+            else:
+                self.last_is_limit_vel[env_ids] = False
+            min_prob += self.limit_vel_prob
+
+        if self.cfg.commands.zero_command_curriculum is not None:
+            self.zero_command_proba = self.get_current_scale(self.cfg.commands.zero_command_curriculum)
+        if self.zero_command_proba > 0.0:
+            max_prob += self.zero_command_proba
+            next_resampling_step = torch.clip(
+                self.max_episode_length
+                - self.episode_length_buf[env_ids]
+                - (remaining_dist / (0.8 * self.max_lin_vel * self.dt + 1e-9)),
+                min=0.0,
+                max=self.cfg.commands.resampling_time / self.dt,
+            )
+            zero_mask = (rand_prob >= min_prob) * (rand_prob < max_prob) * (next_resampling_step > 0.0)
+            zero_env_ids = env_ids[zero_mask]
+            if len(zero_env_ids) > 0:
+                self.commands[zero_env_ids, :2] = 0.0
+                self.commands_resampling_step[zero_env_ids] = next_resampling_step[zero_mask]
+                if self.cfg.commands.limit_ang_vel_at_zero_command_prob > 0.0:
+                    ang_vel_rand = torch.rand(len(zero_env_ids), device=self.device)
+                    add_ang_mask = ang_vel_rand < self.cfg.commands.limit_ang_vel_at_zero_command_prob
+                    add_ang_env_ids = zero_env_ids[add_ang_mask]
+                    if len(add_ang_env_ids) > 0:
+                        direction_rand = torch.rand(len(add_ang_env_ids), device=self.device)
+                        self.commands[add_ang_env_ids, 2] = torch.where(
+                            direction_rand < 0.5,
+                            self.env_command_ranges["ang_vel_yaw"][add_ang_env_ids, 0],
+                            self.env_command_ranges["ang_vel_yaw"][add_ang_env_ids, 1],
+                        )
+                        if self.cfg.commands.heading_command:
+                            self.stop_heading[add_ang_env_ids] = True
+            min_prob += self.zero_command_proba
+
+        if self.cfg.init_state.turn_over and (self.turn_over_timer[env_ids] > 0).any():
+            zero_mask = self.turn_over_timer[env_ids] > 0
+            zero_env_ids = env_ids[zero_mask]
+            self.commands[zero_env_ids, :3] = 0.0
+            self.stop_heading[zero_env_ids] = True
 
         # 每次重采样先回到默认档位，避免上一轮的特殊状态残留。
         self.commands[env_ids, self.body_height_command_idx] = self.cfg.commands.normal_body_height_command
         self.commands[env_ids, 5] = self.cfg.commands.normal_terrain_command
         self.commands[env_ids, 6] = self.cfg.commands.normal_terrain_command
-        eligible_mask = self._get_low_height_terrain_mask(env_ids)
-        special_terrain_mask_5 = self._get_special_terrain_5_mask(env_ids)
-        special_terrain_mask_6 = self._get_special_terrain_6_mask(env_ids)
-        eligible_env_ids = env_ids[eligible_mask]
-        special_terrain_5_env_ids = env_ids[special_terrain_mask_5]
-        special_terrain_6_env_ids = env_ids[special_terrain_mask_6]
-        if len(eligible_env_ids) != 0:
+
+        low_height_eligible_env_ids = env_ids[self._get_low_height_terrain_mask(env_ids)]
+        if len(low_height_eligible_env_ids) > 0:
             # 只对允许的 terrain 按概率采样低高度档位。
-            low_height_mask = torch.rand(len(eligible_env_ids), device=self.device) < self.cfg.commands.low_height_command_prob
-            low_height_env_ids = eligible_env_ids[low_height_mask]
+            low_height_mask = torch.rand(len(low_height_eligible_env_ids), device=self.device) < self.cfg.commands.low_height_command_prob
+            low_height_env_ids = low_height_eligible_env_ids[low_height_mask]
             if len(low_height_env_ids) > 0:
                 self.commands[low_height_env_ids, self.body_height_command_idx] = self.cfg.commands.low_body_height_command
                 self._apply_low_height_command_speed_limit(low_height_env_ids)
+                stopped_heading_env_ids = low_height_env_ids[self.stop_heading[low_height_env_ids]]
+                if self.cfg.commands.heading_command and len(stopped_heading_env_ids) > 0:
+                    self.commands[stopped_heading_env_ids, 2] *= self.low_height_command_velocity_scale[2]
 
+        special_terrain_5_env_ids = env_ids[self._get_special_terrain_5_mask(env_ids)]
         if special_terrain_5_env_ids.numel() > 0:
             special_terrain_5_mask = torch.rand(len(special_terrain_5_env_ids), device=self.device) < self.cfg.commands.special_terrain_probs
             self.commands[special_terrain_5_env_ids[special_terrain_5_mask], 5] = self.cfg.commands.special_terrain_command
 
+        special_terrain_6_env_ids = env_ids[self._get_special_terrain_6_mask(env_ids)]
         if special_terrain_6_env_ids.numel() > 0:
             special_terrain_6_mask = torch.rand(len(special_terrain_6_env_ids), device=self.device) < self.cfg.commands.special_terrain_probs
             self.commands[special_terrain_6_env_ids[special_terrain_6_mask], 6] = self.cfg.commands.special_terrain_command
+
+        self.commands_xy_accumulation[env_ids] += self.commands[env_ids, :2]
 
 
 
@@ -456,6 +664,17 @@ class WINRobot(Go2Robot):
         foot_speed_norm = torch.norm(feet_xy_vel, dim=2)
         rew = torch.sqrt(foot_speed_norm) * contact
         return torch.sum(rew, dim=1)
+
+    def _reward_low_foot(self):
+        """在 special_terrain_6 命令激活时，按悬空脚下探深度惩罚。"""
+        feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
+        contact = self.contact_forces[:, self.feet_indices, 2] > 5.
+        special_command_mask = self._get_is_special_terrain_6_command_mask().unsqueeze(1)
+        margin = getattr(self.cfg.rewards, "low_foot_margin", 0.02)
+        depth_scale = max(getattr(self.cfg.rewards, "low_foot_depth_scale", 0.05), 1e-6)
+        depth = torch.relu(0.0 - feet_pos[:, :, 2] - margin)
+        penalty = torch.square(depth / depth_scale)
+        return torch.sum(penalty * (~contact).float() * special_command_mask.float(), dim=1)
 
     # def _reward_progress(self):
     #     """
