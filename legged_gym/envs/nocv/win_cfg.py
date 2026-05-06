@@ -156,7 +156,7 @@ class WINCfg(GO2Cfg):
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 20.0},
-            {'reward_name': 'foot_slip', 'start_iter': 0, 'end_iter': 10000, 'start_value': 1.0, 'end_value': 20.0},
+            {'reward_name': 'foot_slip', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 20.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
@@ -166,7 +166,7 @@ class WINCfg(GO2Cfg):
             ang_vel_xy = -0.5
             stand_still = -1.0
             action_smoothness = -0.006
-            foot_slip = -0.4
+            foot_slip = -0.02
                 
             # orientation = -0.1
             # stumble = -0.5
