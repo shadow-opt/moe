@@ -151,26 +151,27 @@ class WINCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.2
-        base_height_target = 0.40
+        base_height_target = 0.36
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 20.0},
-            {'reward_name': 'foot_slip', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 20.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'foot_slip', 'start_iter': 40000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
         class scales(GO2Cfg.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -0.5
+            ang_vel_xy = -0.07
             stand_still = -1.0
             action_smoothness = -0.006
-            foot_slip = -0.02
+            foot_slip = -0.01
                 
             # orientation = -0.1
             # stumble = -0.5
-            x_command_hip_regular = -1
+            x_command_hip_regular = -0.2
             
             
             

@@ -161,9 +161,13 @@ class Go2Robot(LeggedRobot):
         hip_dof_indices = [0, 3, 6, 9]
         hip_pos = self.dof_pos[:, hip_dof_indices]
         # 用 x command 在总 command 中的占比，近似衡量“当前任务有多像直线前进”。
-        # 分母是 3 维 command 的范数，因此当 command 几乎全为 0 时，这里会很敏感；
-        # 当前配置里该奖励主要给高速平地专项任务使用，通常不会长期停在纯零命令上。
-        x_command_ratio = torch.abs(self.commands[:,0]) / torch.norm(self.commands[:,:3], dim=1)
+        # 零命令时关闭该项，避免 0/0 产生 NaN。
+        command_norm = torch.norm(self.commands[:, :3], dim=1)
+        x_command_ratio = torch.where(
+            command_norm > 1e-6,
+            torch.abs(self.commands[:, 0]) / command_norm,
+            torch.zeros_like(command_norm),
+        )
         # 当前后两组髋关节和接近 0 时，更像左右对称摆动。
         # 这里的配对方式是：(FL + FR) 和 (RL + RR)，
         # 也就是前腿一组、后腿一组。
