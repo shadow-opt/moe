@@ -74,8 +74,8 @@ class WINCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
-        # terrain_proportions = [0.1, 0.05, 0.1, 0.25, 0.1, 0.2, 0.0, 0.0, 0.2]
-        terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
+        terrain_proportions = [0.1, 0.05, 0.1, 0.25, 0.1, 0.2, 0.0, 0.0, 0.2]
+        # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
     class commands(GO2Cfg.commands):

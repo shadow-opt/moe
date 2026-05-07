@@ -81,7 +81,8 @@ class WINVanillaCTS(WINCTS):
         normal_terrain_command = 0
         special_terrain_command_obs_scale = 1.0
     class terrain(WINCTS.terrain):
-        terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
+        pass
+        # terrain_proportions = [0.05, 0.05, 0.1, 0.2, 0.1, 0.2, 0.1, 0.0, 0.2]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
 
     class rewards(WINCTS.rewards):
