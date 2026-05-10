@@ -12,8 +12,8 @@ class WINGapCfg(WINCfg):
         
     class commands(WINCfg.commands):
         low_height_command_prob = 0.0
-        special_terrain_command = -5
-        special_terrain_command_obs_scale = 0.2
+        special_terrain_command = -2
+        special_terrain_command_obs_scale = 1
         normal_terrain_command = 0
         special_terrain_options_6 = [7]
         special_terrain_options_5 = []
@@ -40,5 +40,6 @@ class WINGapCfg(WINCfg):
 
         class scales(WINCfg.rewards.scales):
             low_foot = -0.3
+            x_command_hip_regular = 0
 
         
