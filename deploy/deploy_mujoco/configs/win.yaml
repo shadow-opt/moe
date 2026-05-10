@@ -20,8 +20,11 @@ kds: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 # MuJoCo j60 joint order in mjmodel.xml is FL, RL, FR, RR.
 # Keep default_angles aligned to MuJoCo order because deploy script applies
 # PD target directly in MuJoCo joint index space.
-default_angles: [0.1,  0.8,  -1.5,   0.1, 1.0, -1.5,
-                 -0.1, 0.8,  -1.5,  -0.1, 1.0, -1.5]
+# default_angles: [0.1,  0.8,  -1.5,   0.1, 1.0, -1.5,
+#                  -0.1, 0.8,  -1.5,  -0.1, 1.0, -1.5]
+
+default_angles: [0.0,  0.8,  -1.5,   0.0, 1.0, -1.5,
+                 0.0, 0.8,  -1.5,   0.0, 1.0, -1.5]
 
 lin_vel_scale: 2.0
 ang_vel_scale: 0.25 
