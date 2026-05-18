@@ -446,36 +446,6 @@
     <origin xyz="0.0450727 0.0002 -0.205232" rpy="0 0 0" />
   </joint>
 
-  <joint name="FR_hip_joint" type="revolute">
-    <parent link="base_link" />
-    <child link="FR_hip" />
-    <origin xyz="0.16 -0.075 0" rpy="0 0 0" />
-    <axis xyz="1 0 0" />
-    <limit lower="-0.5" upper="0.5" effort="30" velocity="15" />
-  </joint>
-
-  <joint name="FR_thigh_joint" type="revolute">
-    <parent link="FR_hip" />
-    <child link="FR_thigh" />
-    <origin xyz="0.055 -0.084 0" rpy="0 0 0" />
-    <axis xyz="0 1 0" />
-    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
-  </joint>
-
-  <joint name="FR_calf_joint" type="revolute">
-    <parent link="FR_thigh" />
-    <child link="FR_calf" />
-    <origin xyz="0 -0.01495 -0.2" rpy="0 0 0" />
-    <axis xyz="0 1 0" />
-    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
-  </joint>
-
-  <joint  dont_collapse="true" name="FR_foot_joint" type="fixed">
-    <parent link="FR_calf" />
-    <child link="FR_foot" />
-    <origin xyz="0.0499776 -0.0002 -0.204093" rpy="0 0 0" />
-  </joint>
-
   <joint name="RL_hip_joint" type="revolute">
     <parent link="base_link" />
     <child link="RL_hip" />
@@ -504,6 +474,36 @@
     <parent link="RL_calf" />
     <child link="RL_foot" />
     <origin xyz="0.0450727 0.0002 -0.205232" rpy="0 0 0" />
+  </joint>
+
+  <joint name="FR_hip_joint" type="revolute">
+    <parent link="base_link" />
+    <child link="FR_hip" />
+    <origin xyz="0.16 -0.075 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <limit lower="-0.5" upper="0.5" effort="30" velocity="15" />
+  </joint>
+
+  <joint name="FR_thigh_joint" type="revolute">
+    <parent link="FR_hip" />
+    <child link="FR_thigh" />
+    <origin xyz="0.055 -0.084 0" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
+  </joint>
+
+  <joint name="FR_calf_joint" type="revolute">
+    <parent link="FR_thigh" />
+    <child link="FR_calf" />
+    <origin xyz="0 -0.01495 -0.2" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
+  </joint>
+
+  <joint  dont_collapse="true" name="FR_foot_joint" type="fixed">
+    <parent link="FR_calf" />
+    <child link="FR_foot" />
+    <origin xyz="0.0499776 -0.0002 -0.204093" rpy="0 0 0" />
   </joint>
 
   <joint name="RR_hip_joint" type="revolute">

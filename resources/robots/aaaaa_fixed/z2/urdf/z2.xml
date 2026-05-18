@@ -39,23 +39,6 @@
         </body>
       </body>
     </body>
-    <body name="FR_hip" pos="0.16 -0.075 0">
-      <inertial pos="0.0506296 0.0221701 -0.000239" quat="0.326185 0.303579 0.651852 0.613622" mass="0.6" diaginertia="0.000667996 0.000641103 0.000488901"/>
-      <joint name="FR_hip_joint" pos="0 0 0" axis="1 0 0" range="-0.5 0.5" actuatorfrcrange="-30 30"/>
-      <geom name="FR_hip_geom" size="0.0366 0.0334" pos="0.057684 0.0226742 0.0010791" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.749024 0.749024 0.749024 1"/>
-      <body name="FR_thigh" pos="0.055 -0.084 0">
-        <inertial pos="-0.007071 -0.003119 -0.050404" quat="0.991691 -0.113365 0.0582242 0.0175184" mass="0.955" diaginertia="0.00491621 0.00469942 0.000998366"/>
-        <joint name="FR_thigh_joint" pos="0 0 0" axis="0 1 0" range="-0.3 3.2" actuatorfrcrange="-30 30"/>
-        <geom name="FR_thigh_geom1" size="0.0422 0.05025" pos="0 0.012625 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.749024 0.749024 0.749024 1"/>
-        <geom name="FR_thigh_geom2" size="0.025 0.015 0.095" pos="-0.011032 -0.0188 -0.077453" quat="0.997189 0 0.0749297 0" type="box" rgba="0.749024 0.749024 0.749024 1"/>
-        <body name="FR_calf" pos="0 -0.01495 -0.2">
-          <inertial pos="0.0331811 -0.00010945 -0.106021" quat="0.710958 -0.0847404 -0.0857223 0.692828" mass="0.2" diaginertia="0.00139287 0.00137417 3.86716e-05"/>
-          <joint name="FR_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.4 -0.3" actuatorfrcrange="-30 30"/>
-          <geom name="FR_calf_geom" size="0.12015 0.02 0.015" pos="0.022557 0.0008348 -0.072349" quat="0.784565 0 0.620047 0" type="box" rgba="0.749024 0.749024 0.749024 1"/>
-          <geom name="FR_foot" size="0.026" pos="0.0499806 -5e-05 -0.203453" rgba="0.749024 0.749024 0.749024 1"/>
-        </body>
-      </body>
-    </body>
     <body name="RL_hip" pos="-0.16 0.075 0.0006991">
       <inertial pos="-0.0506619 -0.0222818 -0.0002469" quat="0.303583 0.327127 0.613027 0.651939" mass="0.6" diaginertia="0.000667037 0.000641102 0.000489861"/>
       <joint name="RL_hip_joint" pos="0 0 0" axis="1 0 0" range="-0.5 0.5" actuatorfrcrange="-30 30"/>
@@ -70,6 +53,23 @@
           <joint name="RL_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.4 -0.3" actuatorfrcrange="-30 30"/>
           <geom name="RL_calf_geom" size="0.12015 0.02 0.015" pos="0.022557 -0.0008348 -0.072349" quat="0.784565 0 0.620047 0" type="box" rgba="0.749024 0.749024 0.749024 1"/>
           <geom name="RL_foot" size="0.026" pos="0.0450757 5e-05 -0.204592" rgba="0.749024 0.749024 0.749024 1"/>
+        </body>
+      </body>
+    </body>
+    <body name="FR_hip" pos="0.16 -0.075 0">
+      <inertial pos="0.0506296 0.0221701 -0.000239" quat="0.326185 0.303579 0.651852 0.613622" mass="0.6" diaginertia="0.000667996 0.000641103 0.000488901"/>
+      <joint name="FR_hip_joint" pos="0 0 0" axis="1 0 0" range="-0.5 0.5" actuatorfrcrange="-30 30"/>
+      <geom name="FR_hip_geom" size="0.0366 0.0334" pos="0.057684 0.0226742 0.0010791" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.749024 0.749024 0.749024 1"/>
+      <body name="FR_thigh" pos="0.055 -0.084 0">
+        <inertial pos="-0.007071 -0.003119 -0.050404" quat="0.991691 -0.113365 0.0582242 0.0175184" mass="0.955" diaginertia="0.00491621 0.00469942 0.000998366"/>
+        <joint name="FR_thigh_joint" pos="0 0 0" axis="0 1 0" range="-0.3 3.2" actuatorfrcrange="-30 30"/>
+        <geom name="FR_thigh_geom1" size="0.0422 0.05025" pos="0 0.012625 0" quat="0.707107 0.707107 0 0" type="cylinder" rgba="0.749024 0.749024 0.749024 1"/>
+        <geom name="FR_thigh_geom2" size="0.025 0.015 0.095" pos="-0.011032 -0.0188 -0.077453" quat="0.997189 0 0.0749297 0" type="box" rgba="0.749024 0.749024 0.749024 1"/>
+        <body name="FR_calf" pos="0 -0.01495 -0.2">
+          <inertial pos="0.0331811 -0.00010945 -0.106021" quat="0.710958 -0.0847404 -0.0857223 0.692828" mass="0.2" diaginertia="0.00139287 0.00137417 3.86716e-05"/>
+          <joint name="FR_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.4 -0.3" actuatorfrcrange="-30 30"/>
+          <geom name="FR_calf_geom" size="0.12015 0.02 0.015" pos="0.022557 0.0008348 -0.072349" quat="0.784565 0 0.620047 0" type="box" rgba="0.749024 0.749024 0.749024 1"/>
+          <geom name="FR_foot" size="0.026" pos="0.0499806 -5e-05 -0.203453" rgba="0.749024 0.749024 0.749024 1"/>
         </body>
       </body>
     </body>
@@ -103,7 +103,7 @@
     <motor name="RL_hip_motor" joint="RL_hip_joint" gear="1"/>
     <motor name="RL_thigh_motor" joint="RL_thigh_joint" gear="1"/>
     <motor name="RL_calf_motor" joint="RL_calf_joint" gear="1"/>
-    
+
     <!-- 前右腿电机 -->
     <motor name="FR_hip_motor" joint="FR_hip_joint" gear="1"/>
     <motor name="FR_thigh_motor" joint="FR_thigh_joint" gear="1"/>

@@ -7,7 +7,7 @@ class WINGapCfg(WINCfg):
 
 
     class terrain(WINCfg.terrain):
-        terrain_proportions = [0.1, 0.1, 0.1, 0, 0, 0, 0.0, 0.5, 0.2]
+        terrain_proportions = [0.0, 0.0, 0.0, 0, 0, 0, 0.0, 0.5, 0.5]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
     class commands(WINCfg.commands):
