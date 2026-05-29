@@ -6,22 +6,22 @@ class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
         turn_over = False
         turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
-        default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.1,   # [rad]
-            'RL_hip_joint': 0.1,   # [rad]
-            'FR_hip_joint': -0.1,  # [rad]
-            'RR_hip_joint': -0.1,   # [rad]
+        # default_joint_angles = { # = target angles [rad] when action = 0.0
+        #     'FL_hip_joint': 0.1,   # [rad]
+        #     'RL_hip_joint': 0.1,   # [rad]
+        #     'FR_hip_joint': -0.1,  # [rad]
+        #     'RR_hip_joint': -0.1,   # [rad]
 
-            'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 1.0,   # [rad]
-            'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 1.0,   # [rad]
+        #     'FL_thigh_joint': 0.8,     # [rad]
+        #     'RL_thigh_joint': 1.0,   # [rad]
+        #     'FR_thigh_joint': 0.8,     # [rad]
+        #     'RR_thigh_joint': 1.0,   # [rad]
 
-            'FL_calf_joint': -1.4,   # [rad]
-            'RL_calf_joint': -1.4,    # [rad]
-            'FR_calf_joint': -1.4,  # [rad]
-            'RR_calf_joint': -1.4,    # [rad]
-        }
+        #     'FL_calf_joint': -1.4,   # [rad]
+        #     'RL_calf_joint': -1.4,    # [rad]
+        #     'FR_calf_joint': -1.4,  # [rad]
+        #     'RR_calf_joint': -1.4,    # [rad]
+        # }
 
     class domain_rand(GO2Cfg.domain_rand):
         randomize_base_mass = True
@@ -32,10 +32,10 @@ class WINCfg(GO2Cfg):
 
 
     class asset(GO2Cfg.asset):
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
+        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
         collapse_fixed_joints = False
 
-        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
         foot_name = 'foot'
         terminate_after_contacts_on = ["base","trunk"]

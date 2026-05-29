@@ -37,13 +37,13 @@ class HIMCfg(WINVanillaCTS):
                 # 给命令采样设置一个 lower bound，避免采到“理论上走不完”的过慢命令。
         dynamic_resample_commands = True # sample commands with low bounds
         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
-            'iter': 1000, # training iteration at which the command ranges are updated
+            'iter': 300, # training iteration at which the command ranges are updated
             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 2000, # training iteration at which the command ranges are updated
+            'iter': 700, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -57,12 +57,23 @@ class HIMCfg(WINVanillaCTS):
         }
         # terrain-wise 上限，相当于“全局命令范围”和“地形可承受范围”的交集裁剪。
         # [wave, slope, rough slope, stairs up, stairs down, obstacles, stepping stones, gap, flat]
+        # terrain_max_command_ranges = [
+        #     {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
+        #     {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
+        #     {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
+        #     {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs up
+        #     {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
+        #     {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
+        #     {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
+        #     {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
+        #     {'lin_vel_x': [-2.0, 2.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-2.0, 2.0], 'heading': [-1.57, 1.57]},  # flat
+        # ]
         terrain_max_command_ranges = [
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs up
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0, 0]},  # stairs up
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0, 0]},  # stairs down
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
             {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
@@ -78,13 +89,31 @@ class HIMCfg(WINVanillaCTS):
     class rewards(WINVanillaCTS.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.18
-        base_height_target = 0.37
-        only_positive_rewards = True
+        low_base_height_target = 0.2
+        base_height_target = 0.34
+        only_positive_rewards = False
+        curriculum_rewards = [
+        # 早期强约束身体不要乱跳，后期放开，让策略自己找步态。
+        {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 600, 'start_value': 1.0, 'end_value': 0.2},
+
+        # him 有低高度 command，base height 目标很重要；训练中后期逐渐加重。
+        {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 1200, 'start_value': 1.0, 'end_value': 4.0},
+
+        # roll/pitch 稳定性不要一开始太狠，否则会压制低身高动作；后期再收紧。
+        {'reward_name': 'ang_vel_xy', 'start_iter': 300, 'end_iter': 1600, 'start_value': 1.0, 'end_value': 3.0},
+
+        # 脚滑和动作平滑更像“收尾塑形”，太早加重容易学慢。
+        {'reward_name': 'foot_slip', 'start_iter': 800, 'end_iter': 1800, 'start_value': 1.0, 'end_value': 3.0},
+        {'reward_name': 'action_smoothness', 'start_iter': 800, 'end_iter': 1800, 'start_value': 1.0, 'end_value': 2.0},
+
+        # 直走约束如果你希望 him 更会正向过地形，可以中后期加。
+        {'reward_name': 'straight_path_deviation', 'start_iter': 1000, 'end_iter': 2000, 'start_value': 1.0, 'end_value': 2.0},
+    ]
         class scales(WINVanillaCTS.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -5 # [NOTE] 新增
             stand_still = -0.5
+            collision = -1
             # orientation = -0.5
             # stumble = -2.
             # x_command_hip_regular = -0.5
@@ -96,7 +125,7 @@ class HIMCfgPPO(LeggedRobotCfgHIM):
     class runner( LeggedRobotCfgHIM.runner ):
         run_name = ''
         experiment_name = 'himloco'
-        max_iterations = 4000 # number of policy updates
+        max_iterations = 2000 # number of policy updates
 
         # logging
         save_interval = 500 # check for potential saves every this many iterations
