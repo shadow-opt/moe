@@ -7,20 +7,20 @@ class WINCfg(GO2Cfg):
         turn_over = False
         turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
         default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0,   # [rad]
-            'RL_hip_joint': 0,   # [rad]
-            'FR_hip_joint': 0 ,  # [rad]
-            'RR_hip_joint': 0,   # [rad]
+            'FL_hip_joint': 0.1,   # [rad]
+            'RL_hip_joint': 0.1,   # [rad]
+            'FR_hip_joint': -0.1,  # [rad]
+            'RR_hip_joint': -0.1,   # [rad]
 
-            'FL_thigh_joint': 0.65,     # [rad]
-            'RL_thigh_joint': 0.65,   # [rad]
-            'FR_thigh_joint': 0.65,     # [rad]
-            'RR_thigh_joint': 0.65,   # [rad]
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.0,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.0,   # [rad]
 
-            'FL_calf_joint': -1.05,   # [rad]
-            'RL_calf_joint': -1.05,    # [rad]
-            'FR_calf_joint': -1.05,  # [rad]
-            'RR_calf_joint': -1.05,    # [rad]
+            'FL_calf_joint': -1.4,   # [rad]
+            'RL_calf_joint': -1.4,    # [rad]
+            'FR_calf_joint': -1.4,  # [rad]
+            'RR_calf_joint': -1.4,    # [rad]
         }
 
     class domain_rand(GO2Cfg.domain_rand):
@@ -34,7 +34,7 @@ class WINCfg(GO2Cfg):
     class asset(GO2Cfg.asset):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
         collapse_fixed_joints = False
-        
+
         # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
         foot_name = 'foot'
@@ -74,7 +74,7 @@ class WINCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
-        terrain_proportions = [0.1, 0.05, 0.1, 0.25, 0.1, 0.2, 0.0, 0.0, 0.2]
+        terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
@@ -138,8 +138,8 @@ class WINCfg(GO2Cfg):
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs up
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-1.57, 1.57]},  # stairs up
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-1.57, 1.57]},  # stairs down
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
             {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
@@ -151,11 +151,11 @@ class WINCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.2
-        base_height_target = 0.41
+        base_height_target = 0.38
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'foot_slip', 'start_iter': 40000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},

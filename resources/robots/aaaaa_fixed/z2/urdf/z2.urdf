@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot name="z2">
-<!-- package://z2 -->
+  <!-- package://z2 -->
   <link name="base_link">
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0" />
@@ -429,7 +429,7 @@
     <child link="FL_thigh" />
     <origin xyz="0.055 0.0842 0" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
+    <limit lower="-0.1" upper="3.2" effort="30" velocity="15" />
   </joint>
 
   <joint name="FL_calf_joint" type="revolute">
@@ -437,7 +437,7 @@
     <child link="FL_calf" />
     <origin xyz="0 0.01475 -0.2" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
+    <limit lower="-2.4" upper="-1.1" effort="30" velocity="15" />
   </joint>
 
   <joint dont_collapse="true" name="FL_foot_joint" type="fixed">
@@ -459,7 +459,7 @@
     <child link="RL_thigh" />
     <origin xyz="-0.0556459 0.084 -0.0002675" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
+    <limit lower="-0.1" upper="3.2" effort="30" velocity="15" />
   </joint>
 
   <joint name="RL_calf_joint" type="revolute">
@@ -467,10 +467,10 @@
     <child link="RL_calf" />
     <origin xyz="0 0.01495 -0.2" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
+    <limit lower="-2.4" upper="-1.1" effort="30" velocity="15" />
   </joint>
 
-  <joint  dont_collapse="true" name="RL_foot_joint" type="fixed">
+  <joint dont_collapse="true" name="RL_foot_joint" type="fixed">
     <parent link="RL_calf" />
     <child link="RL_foot" />
     <origin xyz="0.0450727 0.0002 -0.205232" rpy="0 0 0" />
@@ -489,7 +489,7 @@
     <child link="FR_thigh" />
     <origin xyz="0.055 -0.084 0" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
+    <limit lower="-0.1" upper="3.2" effort="30" velocity="15" />
   </joint>
 
   <joint name="FR_calf_joint" type="revolute">
@@ -497,10 +497,10 @@
     <child link="FR_calf" />
     <origin xyz="0 -0.01495 -0.2" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
+    <limit lower="-2.4" upper="-1.1" effort="30" velocity="15" />
   </joint>
 
-  <joint  dont_collapse="true" name="FR_foot_joint" type="fixed">
+  <joint dont_collapse="true" name="FR_foot_joint" type="fixed">
     <parent link="FR_calf" />
     <child link="FR_foot" />
     <origin xyz="0.0499776 -0.0002 -0.204093" rpy="0 0 0" />
@@ -519,7 +519,7 @@
     <child link="RR_thigh" />
     <origin xyz="-0.055 -0.0842 0" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-0.3" upper="3.2" effort="30" velocity="15" />
+    <limit lower="-0.1" upper="3.2" effort="30" velocity="15" />
   </joint>
 
   <joint name="RR_calf_joint" type="revolute">
@@ -527,7 +527,7 @@
     <child link="RR_calf" />
     <origin xyz="0 -0.01475 -0.2" rpy="0 0 0" />
     <axis xyz="0 1 0" />
-    <limit lower="-2.4" upper="-0.3" effort="30" velocity="15" />
+    <limit lower="-2.4" upper="-1.1" effort="30" velocity="15" />
   </joint>
 
   <joint dont_collapse="true" name="RR_foot_joint" type="fixed">
