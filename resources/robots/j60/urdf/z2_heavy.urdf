@@ -110,7 +110,7 @@
     <child link="FL_hip"/>
     <axis xyz="1 0 0"/>
     <dynamics damping="0" friction="0"/>
-    <limit effort="30" lower="--0.5" upper="-0.5" velocity="15"/>
+    <limit effort="30" lower="-0.5" upper="0.5" velocity="15"/>
   </joint>
   <link name="FL_hip">
     <visual>
@@ -286,7 +286,7 @@
     <child link="RL_hip"/>
     <axis xyz="1 0 0"/>
     <dynamics damping="0" friction="0"/>
-    <limit effort="30" lower="--0.5" upper="-0.5" velocity="15"/>
+    <limit effort="30" lower="-0.5" upper="0.5" velocity="15"/>
   </joint>
   <link name="RL_hip">
     <visual>
@@ -462,7 +462,7 @@
     <child link="FR_hip"/>
     <axis xyz="1 0 0"/>
     <dynamics damping="0" friction="0"/>
-    <limit effort="30" lower="--0.5" upper="-0.5" velocity="15"/>
+    <limit effort="30" lower="-0.5" upper="0.5" velocity="15"/>
   </joint>
   <link name="FR_hip">
     <visual>
@@ -638,7 +638,7 @@
     <child link="RR_hip"/>
     <axis xyz="1 0 0"/>
     <dynamics damping="0" friction="0"/>
-    <limit effort="30" lower="--0.5" upper="-0.5" velocity="15"/>
+    <limit effort="30" lower="-0.5" upper="0.5" velocity="15"/>
   </joint>
   <link name="RR_hip">
     <visual>

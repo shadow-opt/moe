@@ -5,7 +5,7 @@ from legged_gym.envs.go2.go2_config import GO2CfgCTS
 class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
         turn_over = False
-        turn_over_proportions = [0.0, 0.2, 0.8] # proportions for backflip, sideflip, noflip
+        turn_over_proportions = [0.0, 0.0, 0.0] # proportions for backflip, sideflip, noflip
         # default_joint_angles = { # = target angles [rad] when action = 0.0
         #     'FL_hip_joint': 0.1,   # [rad]
         #     'RL_hip_joint': 0.1,   # [rad]
@@ -32,17 +32,21 @@ class WINCfg(GO2Cfg):
 
 
     class asset(GO2Cfg.asset):
-        # file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
         collapse_fixed_joints = False
-
-        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         name = 'z2'
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
+        foot_name = 'FOOT'
+        flip_visual_attachments = True
+        """
+        file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
         foot_name = 'foot'
+        flip_visual_attachments = False
+        """
         terminate_after_contacts_on = ["base","trunk"]
         penalize_contacts_on = ["thigh", "calf", "hip"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
-        flip_visual_attachments = False
-
+        
+        
     class control(GO2Cfg.control):
         """底层控制器配置。
 
@@ -74,6 +78,7 @@ class WINCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
+        mesh_type = 'plane'
         terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
