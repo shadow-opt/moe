@@ -78,7 +78,7 @@ class WINCfg(GO2Cfg):
     class terrain(GO2Cfg.terrain):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
-        mesh_type = 'plane'
+        # mesh_type = 'plane'
         terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
@@ -143,8 +143,8 @@ class WINCfg(GO2Cfg):
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-1.57, 1.57]},  # stairs up
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-1.57, 1.57]},  # stairs down
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0.0, 0.0]},  # stairs up
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0.0, 0.0]},  # stairs down
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
             {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
