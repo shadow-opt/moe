@@ -91,7 +91,7 @@ class HIMCfg(WINVanillaCTS):
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.2
         base_height_target = 0.34
-        only_positive_rewards = False
+        only_positive_rewards = True
         curriculum_rewards = [
         # 早期强约束身体不要乱跳，后期放开，让策略自己找步态。
         {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 600, 'start_value': 1.0, 'end_value': 0.2},
