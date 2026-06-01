@@ -150,6 +150,8 @@ if __name__ == "__main__":
         dof_vel_scale = config["dof_vel_scale"]
         action_scale = config["action_scale"]
         cmd_scale = np.array(config["cmd_scale"], dtype=np.float32)
+        clip_observations = float(config.get("clip_observations", 100.0))
+        clip_actions = float(config.get("clip_actions", 100.0))
 
         num_actions = config["num_actions"]
         num_obs = config["num_obs"]
@@ -157,6 +159,8 @@ if __name__ == "__main__":
         viewer_camera_name = config.get("viewer_camera_name", "chase_cam")
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
+        init_base_pos = np.array(config.get("init_base_pos", [0.0, 0.0, 0.42]), dtype=np.float32)
+        init_base_quat = np.array(config.get("init_base_quat", [1.0, 0.0, 0.0, 0.0]), dtype=np.float32)
 
         config_mujoco_joint_names = None
         model_joint_names = None
@@ -172,6 +176,10 @@ if __name__ == "__main__":
         )
     if len(cmd) != len(cmd_scale):
         raise ValueError(f"cmd_init len {len(cmd)} != cmd_scale len {len(cmd_scale)}")
+    if len(init_base_pos) != 3:
+        raise ValueError(f"init_base_pos len {len(init_base_pos)} != 3")
+    if len(init_base_quat) != 4:
+        raise ValueError(f"init_base_quat len {len(init_base_quat)} != 4")
     expected_num_obs = 3 + 3 + len(cmd) + 3 * num_actions
     if num_obs != expected_num_obs:
         raise ValueError(f"num_obs mismatch: config={num_obs}, expected={expected_num_obs}")
@@ -236,6 +244,13 @@ if __name__ == "__main__":
     default_angles = reorder_by_joint_names(default_angles, config_mujoco_joint_names, qpos_joint_names)
     kps = reorder_by_joint_names(kps, config_mujoco_joint_names, qpos_joint_names)
     kds = reorder_by_joint_names(kds, config_mujoco_joint_names, qpos_joint_names)
+    target_dof_pos = default_angles.copy()
+
+    d.qpos[:3] = init_base_pos
+    d.qpos[3:7] = init_base_quat / np.linalg.norm(init_base_quat)
+    d.qpos[7:] = default_angles
+    d.qvel[:] = 0.0
+    mujoco.mj_forward(m, d)
 
     print(f"XML qpos joint order: {qpos_joint_names}")
     print(f"XML actuator joint order: {actuator_joint_names}")
@@ -249,6 +264,8 @@ if __name__ == "__main__":
     
     # load policy
     policy = torch.jit.load(policy_path)
+    if hasattr(policy, "reset"):
+        policy.reset()
 
     video_fps = 50
     if save_video:
@@ -349,7 +366,7 @@ if __name__ == "__main__":
                 obs[12 : 12 + num_actions] = qj[idx_qpos2model]
                 obs[12 + num_actions : 12 + 2 * num_actions] = dqj[idx_qpos2model]
                 obs[12 + 2 * num_actions : 12 + 3 * num_actions] = action
-                
+                np.clip(obs, -clip_observations, clip_observations, out=obs)
                 
                 
                 obs_tensor = torch.from_numpy(obs).unsqueeze(0)
@@ -376,6 +393,7 @@ if __name__ == "__main__":
                         all_latents.append(latent)
                 else:
                     action = result.detach().cpu().numpy().squeeze()
+                action = np.clip(action, -clip_actions, clip_actions)
                 # transform action to target_dof_pos
                 target_dof_pos = action[idx_model2qpos] * action_scale + default_angles
 

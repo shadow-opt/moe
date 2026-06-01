@@ -34,6 +34,7 @@ class WINCfg(GO2Cfg):
     class asset(GO2Cfg.asset):
         collapse_fixed_joints = False
         name = 'z2'
+        """
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/z2_heavy.urdf'
         foot_name = 'FOOT'
         flip_visual_attachments = True
@@ -41,7 +42,7 @@ class WINCfg(GO2Cfg):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/z2.urdf'
         foot_name = 'foot'
         flip_visual_attachments = False
-        """
+        
         terminate_after_contacts_on = ["base","trunk"]
         penalize_contacts_on = ["thigh", "calf", "hip"]
         self_collisions = 1 # 1关闭自碰撞，0开启自碰撞
