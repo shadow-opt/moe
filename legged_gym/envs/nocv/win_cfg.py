@@ -162,8 +162,9 @@ class WINCfg(GO2Cfg):
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'foot_slip', 'start_iter': 40000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
