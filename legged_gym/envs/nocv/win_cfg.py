@@ -80,7 +80,8 @@ class WINCfg(GO2Cfg):
         # NoCV 训练更偏向楼梯/障碍类地形，但仍保留部分平地与斜坡，
         # 低高度档位只在 slope / rough_slope / flat 上启用。
         # mesh_type = 'plane'
-        terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
+        # terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
+        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.15, 0.1, 0.0, 0.2] 
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
@@ -106,7 +107,7 @@ class WINCfg(GO2Cfg):
         # 当采到低高度档位时，对速度命令做额外缩放：
         # [lin_vel_x, lin_vel_y, ang_vel_yaw]
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
-        low_height_command_velocity_scale = [0.5, 0.5, 0.7]
+        low_height_command_velocity_scale = [0.3, 0.2, 0.0]
 
         special_terrain_options_5 = [3]
         special_terrain_options_6 = [6]
@@ -161,20 +162,21 @@ class WINCfg(GO2Cfg):
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
         class scales(GO2Cfg.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -0.1
+            ang_vel_xy = -0.07
             stand_still = -1.0
             action_smoothness = -0.01
-            foot_slip = -0.1
+            foot_slip = -0.04
                 
             # orientation = -0.1
             # stumble = -0.5

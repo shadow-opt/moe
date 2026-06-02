@@ -1,9 +1,9 @@
 policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_moe_cts/exported/policies/policy.pt"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/scene_terrain.xml"
-xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/scene_terrain.xml"
+# xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/scene_terrain.xml"
 # xml_path: "/home/sha-opt/文档/z2/urdf/scene_terrain.xml"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/qianxihouzhouzu/urdf/mjmodel.xml"
-# xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/cross_slope.xml"
+xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/cross_slope.xml"
 # Total simulation time
 simulation_duration: 60000000.0
 # Simulation time step
@@ -59,17 +59,17 @@ mujoco_joint_names: [
   "RR_calf_joint"
 ]
 
-# Keep model_joint_names in training/model output order.
+# Keep model_joint_names in exported policy output order.
 model_joint_names: [
   "FL_hip_joint",
   "FL_thigh_joint",
   "FL_calf_joint",
-  "RL_hip_joint",
-  "RL_thigh_joint",
-  "RL_calf_joint",
   "FR_hip_joint",
   "FR_thigh_joint",
   "FR_calf_joint",
+  "RL_hip_joint",
+  "RL_thigh_joint",
+  "RL_calf_joint",
   "RR_hip_joint",
   "RR_thigh_joint",
   "RR_calf_joint"

@@ -117,6 +117,7 @@ if __name__ == "__main__":
     config_file = args.config
     # config_file = "win_go2.yaml"
     pygame.init()
+    pygame.joystick.init()
     use_joystick = False
     joystick = None
     button_state = {}
@@ -246,8 +247,11 @@ if __name__ == "__main__":
     kds = reorder_by_joint_names(kds, config_mujoco_joint_names, qpos_joint_names)
     target_dof_pos = default_angles.copy()
 
+    init_base_quat_norm = np.linalg.norm(init_base_quat)
+    if init_base_quat_norm <= 0.0:
+        raise ValueError(f"init_base_quat must be non-zero, got {init_base_quat}")
     d.qpos[:3] = init_base_pos
-    d.qpos[3:7] = init_base_quat / np.linalg.norm(init_base_quat)
+    d.qpos[3:7] = init_base_quat / init_base_quat_norm
     d.qpos[7:] = default_angles
     d.qvel[:] = 0.0
     mujoco.mj_forward(m, d)
@@ -376,8 +380,8 @@ if __name__ == "__main__":
                 if isinstance(result, tuple):
                     action, (weights, latent) = result  # moe
                     action = action.detach().cpu().numpy().squeeze()
-                    # weights = weights.detach().numpy().squeeze()
-                    latent = latent.detach().numpy().squeeze()
+                    weights = weights.detach().cpu().numpy().squeeze()
+                    latent = latent.detach().cpu().numpy().squeeze()
                     if visualize_moe_weights:
                         if bars is None:
                             x = np.arange(len(weights))
@@ -419,3 +423,4 @@ if __name__ == "__main__":
         all_latents = np.array(all_latents)
         np.save(latent_path, all_latents)
         print(f"Latent vectors saved successfully to {latent_path}")
+    pygame.quit()

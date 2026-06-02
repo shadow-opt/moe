@@ -6,8 +6,8 @@
   <!-- 默认参数设置 -->
   <default>
     <joint damping="0.1" frictionloss="0.01"/>
-    <!-- <geom friction="0.8 0.02 0.01" margin="0.001" gap="0.0"/> -->
-    <!-- <motor ctrllimited="true" ctrlrange="-33.5 33.5"/> -->
+    <geom friction="0.8 0.02 0.01" margin="0.001" gap="0.0"/>
+    <motor ctrllimited="true" ctrlrange="-33.5 33.5"/>
   </default>
   <!-- 资源 -->
   <asset>
@@ -36,7 +36,7 @@
             <inertial pos="0.00701227 0.00010936 -0.110871" quat="0.707426 -0.000149515 -0.00126598 0.706787" mass="0.2" diaginertia="0.00139284 0.00137362 3.82157e-05"/>
             <joint name="FL_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.69653 -0.916298" actuatorfrcrange="-30 30"/>
             <geom size="0.12015 0.02 0.015" pos="0.002557 0.009165 -0.072349" quat="0.718746 0 0.695273 0" type="box" rgba="0.752941 0.752941 0.752941 1"/>
-            <geom size="0.026" pos="3e-06 5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1"/>
+            <geom name="FL_foot" size="0.026" pos="3e-06 5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1" friction="1.2 0.05 0.01"/>
           </body>
         </body>
       </body>
@@ -53,7 +53,7 @@
             <inertial pos="0.00701227 0.00010936 -0.110871" quat="0.707426 -0.000149348 -0.00126581 0.706787" mass="0.2" diaginertia="0.00139286 0.00137363 3.82157e-05"/>
             <joint name="RL_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.69653 -0.916298" actuatorfrcrange="-30 30"/>
             <geom size="0.12015 0.02 0.015" pos="0.002557 0.009165 -0.072349" quat="0.718746 0 0.695273 0" type="box" rgba="0.752941 0.752941 0.752941 1"/>
-            <geom size="0.026" pos="3e-06 5e-05 -0.209483" rgba="0.752941 0.752941 0.752941 1"/>
+            <geom name="RL_foot" size="0.026" pos="3e-06 5e-05 -0.209483" rgba="0.752941 0.752941 0.752941 1" friction="1.2 0.05 0.01"/>
           </body>
         </body>
       </body>
@@ -70,7 +70,7 @@
             <inertial pos="0.00701245 -0.00010945 -0.11087" quat="0.706787 -0.00126576 -0.000149405 0.707425" mass="0.2" diaginertia="0.00139285 0.00137363 3.82157e-05"/>
             <joint name="FR_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.69653 -0.916298" actuatorfrcrange="-30 30"/>
             <geom size="0.12015 0.02 0.015" pos="0.002557 -0.009165 -0.072349" quat="0.718746 0 0.695273 0" type="box" rgba="0.752941 0.752941 0.752941 1"/>
-            <geom size="0.026" pos="3e-06 -5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1"/>
+            <geom name="FR_foot" size="0.026" pos="3e-06 -5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1" friction="1.2 0.05 0.01"/>
           </body>
         </body>
       </body>
@@ -87,7 +87,7 @@
             <inertial pos="0.00701245 -0.00010945 -0.11087" quat="0.706933 -0.000221999 -0.00119391 0.707279" mass="0.2" diaginertia="0.00139285 0.00137363 3.82165e-05"/>
             <joint name="RR_calf_joint" pos="0 0 0" axis="0 1 0" range="-2.69653 -0.916298" actuatorfrcrange="-30 30"/>
             <geom size="0.12015 0.02 0.015" pos="0.002557 -0.009165 -0.072349" quat="0.718746 0 0.695273 0" type="box" rgba="0.752941 0.752941 0.752941 1"/>
-            <geom size="0.026" pos="3e-06 -5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1"/>
+            <geom name="RR_foot" size="0.026" pos="3e-06 -5e-05 -0.20948" rgba="0.752941 0.752941 0.752941 1" friction="1.2 0.05 0.01"/>
           </body>
         </body>
       </body>

@@ -135,15 +135,16 @@ class Terrain:
         elif choice < self.proportions[5]:  # 障碍物
             terrain.terrain_name = "obstacles"
             terrain.terrain_id = 5
-            num_rectangles = 20
+            num_rectangles = 30 # 20
             rectangle_min_size = 1.
             rectangle_max_size = 2.
-            terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.)
+            # terrain_utils.discrete_obstacles_terrain(terrain, discrete_obstacles_height, rectangle_min_size, rectangle_max_size, num_rectangles, platform_size=3.)
+            obstacles_terrain(terrain, max_height=discrete_obstacles_height, min_size=rectangle_min_size, max_size=rectangle_max_size, num_rects=num_rectangles, platform_size=2.)
         elif choice < self.proportions[6]:
             terrain.terrain_name = "stones"
             terrain.terrain_id = 6
             terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
-            stone_terrain(terrain, step_width=0.31, step_height=step_height*0.3, platform_size=2.)
+            stone_terrain(terrain, step_width=0.31, step_height=step_height*0.4, platform_size=2.)
             terrain_utils.wave_terrain(terrain, num_waves=5, amplitude=amplitude)
             
 
@@ -352,4 +353,43 @@ def plank_bridge_terrain(terrain, gap_size=0.15, plank_length=0.5, plank_width=1
     # 将中心区域强制设为平地高度，覆盖掉可能存在的间隙
     terrain.height_field_raw[plat_start:plat_end, y_start:y_end] = height_raw
 
+    return terrain
+
+def obstacles_terrain(terrain, max_height, min_size, max_size, num_rects, platform_size=1.):
+    """
+    Generate a terrain with obstacles
+
+    Parameters:
+        terrain (terrain): the terrain
+        max_height (float): maximum height of the obstacles (range=[-max, -max/2, max/2, max]) [meters]
+        min_size (float): minimum size of a rectangle obstacle [meters]
+        max_size (float): maximum size of a rectangle obstacle [meters]
+        num_rects (int): number of randomly generated obstacles
+        platform_size (float): size of the flat platform at the center of the terrain [meters]
+    Returns:
+        terrain (SubTerrain): update terrain
+    """
+    # switch parameters to discrete units
+    max_height = int(max_height / terrain.vertical_scale)
+    min_size = int(min_size / terrain.horizontal_scale)
+    max_size = int(max_size / terrain.horizontal_scale)
+    platform_size = int(platform_size / terrain.horizontal_scale)
+
+    (i, j) = terrain.height_field_raw.shape
+    height_range = [-max_height // 3, -max_height // 2, max_height // 2, max_height]
+    width_range = range(min_size, max_size, 4)
+    length_range = range(min_size, max_size, 4)
+
+    for _ in range(num_rects):
+        width = np.random.choice(width_range)
+        length = np.random.choice(length_range)
+        start_i = np.random.choice(range(0, i-width, 4))
+        start_j = np.random.choice(range(0, j-length, 4))
+        terrain.height_field_raw[start_i:start_i+width, start_j:start_j+length] = np.random.choice(height_range)
+
+    x1 = (terrain.width - platform_size) // 2
+    x2 = (terrain.width + platform_size) // 2
+    y1 = (terrain.length - platform_size) // 2
+    y2 = (terrain.length + platform_size) // 2
+    terrain.height_field_raw[x1:x2, y1:y2] = 0
     return terrain
