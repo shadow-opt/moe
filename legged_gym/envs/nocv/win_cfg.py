@@ -170,6 +170,15 @@ class WINCfg(GO2Cfg):
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
+        dynamic_sigma = { # linear interpolation of sigma based on command velocity, **Must start terrain curriculum first**
+            "min_lin_vel": 0.5, # min abs linear velocity to have default sigma
+            "max_lin_vel": 1.5, # max abs linear velocity to have max sigma
+            "min_ang_vel": 1.0, # min abs angular velocity to have default sigma
+            "max_ang_vel": 2.0, # max abs angular velocity to have max sigma
+            # wave, slope, rough_slope, stairs up, stairs down, obstacles, stepping_stones, gap, flat]
+            # "max_sigma": [1/3, 1/4, 1/4, 1/2.7, 1/2.7, 1/2, 1, 1, 1/4]
+            "max_sigma": [5/12, 1/4, 1/4, 1/2, 1/2, 1, 3/4, 1, 1/4]
+        }
         class scales(GO2Cfg.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
