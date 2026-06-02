@@ -557,6 +557,20 @@ class WINRobot(Go2Robot):
         penalty[low_height_mask] = 0.0
         return penalty
 
+    def _reward_lateral_yaw_tracking_error(self):
+        """低高度特殊指令下，对 y 速度和 yaw 角速度的命令偏差施加强惩罚。"""
+        lateral_vel_error = self.base_lin_vel[:, 1] - self.commands[:, 1]
+        yaw_vel_error = self.base_ang_vel[:, 2] - self.commands[:, 2]
+        low_height_mask = self._get_is_low_height_command_mask()
+        return (torch.square(lateral_vel_error) + torch.square(yaw_vel_error)) * low_height_mask.float()
+
+    def _reward_hip_to_zero(self):
+        """低高度特殊指令下，鼓励 4 个 hip 关节角靠近 0，减少横向张腿。"""
+        hip_dof_indices = [0, 3, 6, 9]
+        hip_pos = self.dof_pos[:, hip_dof_indices]
+        low_height_mask = self._get_is_low_height_command_mask()
+        return torch.sum(torch.square(hip_pos), dim=1) * low_height_mask.float()
+
     def _reward_correct_base_height(self):
         """按 command 档位切换目标高度的 base-height reward。
 

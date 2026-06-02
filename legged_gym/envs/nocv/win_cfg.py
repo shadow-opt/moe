@@ -107,7 +107,7 @@ class WINCfg(GO2Cfg):
         # 当采到低高度档位时，对速度命令做额外缩放：
         # [lin_vel_x, lin_vel_y, ang_vel_yaw]
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
-        low_height_command_velocity_scale = [0.3, 0.2, 0.0]
+        low_height_command_velocity_scale = [0.4, 0.0, 0.0]
 
         special_terrain_options_5 = [3]
         special_terrain_options_6 = [6]
@@ -158,7 +158,7 @@ class WINCfg(GO2Cfg):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.2
-        base_height_target = 0.33
+        base_height_target = 0.37
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
@@ -167,6 +167,7 @@ class WINCfg(GO2Cfg):
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
+            {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
@@ -183,9 +184,11 @@ class WINCfg(GO2Cfg):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.07
+            lateral_yaw_tracking_error = -0.6
             stand_still = -1.0
             action_smoothness = -0.01
             foot_slip = -0.04
+            hip_to_zero = -0.2
                 
             # orientation = -0.1
             # stumble = -0.5
