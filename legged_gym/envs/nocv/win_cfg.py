@@ -103,7 +103,7 @@ class WINCfg(GO2Cfg):
         low_height_command_prob = 0.4
         # 仅在这些 terrain id 上允许采样低高度档位：
         # 1 = slope, 2 = rough_slope, 8 = flat
-        low_height_terrain_ids = [1, 2, 8]  # slope, rough_slope, flat
+        low_height_terrain_ids = [8]  # slope, rough_slope, flat
         # 当采到低高度档位时，对速度命令做额外缩放：
         # [lin_vel_x, lin_vel_y, ang_vel_yaw]
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
