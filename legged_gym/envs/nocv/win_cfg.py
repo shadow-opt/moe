@@ -162,12 +162,13 @@ class WINCfg(GO2Cfg):
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
-            {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 4.0},
+            {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 6.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
@@ -187,7 +188,7 @@ class WINCfg(GO2Cfg):
             lateral_yaw_tracking_error = -0.6
             stand_still = -1.0
             action_smoothness = -0.01
-            foot_slip = -0.04
+            foot_slip = -0.03
             hip_to_zero = -0.2
                 
             # orientation = -0.1
