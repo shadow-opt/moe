@@ -184,7 +184,7 @@ class WINCfg(GO2Cfg):
         class scales(GO2Cfg.rewards.scales):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
-            ang_vel_xy = -0.06
+            ang_vel_xy = -0.05
             lateral_yaw_tracking_error = -0.6
             stand_still = -1.0
             action_smoothness = -0.01
@@ -193,7 +193,7 @@ class WINCfg(GO2Cfg):
                 
             # orientation = -0.1
             # stumble = -0.5
-            # x_command_hip_regular = -0.2
+            x_command_hip_regular = -0.2
             
             
             
