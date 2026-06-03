@@ -144,7 +144,7 @@ class Terrain:
             terrain.terrain_name = "stones"
             terrain.terrain_id = 6
             terrain_utils.random_uniform_terrain(terrain, min_height=-0.05 - 0.05 * difficulty, max_height=0.05 + 0.05 * difficulty, step=0.005, downsampled_scale=0.2)
-            stone_terrain(terrain, step_width=0.31, step_height=step_height*0.4, platform_size=2.)
+            stone_terrain(terrain, step_width=0.31, step_height=step_height*0.3, platform_size=2.)
             terrain_utils.wave_terrain(terrain, num_waves=5, amplitude=amplitude)
             
 

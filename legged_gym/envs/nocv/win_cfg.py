@@ -81,7 +81,7 @@ class WINCfg(GO2Cfg):
         # 低高度档位只在 slope / rough_slope / flat 上启用。
         # mesh_type = 'plane'
         # terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
-        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.15, 0.1, 0.0, 0.2] 
+        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.15, 0.0, 0.0, 0.3] 
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
@@ -162,13 +162,13 @@ class WINCfg(GO2Cfg):
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 4.0},
-            {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 6.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 2.0},
+            {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 3.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
-            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
             # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
         ]
