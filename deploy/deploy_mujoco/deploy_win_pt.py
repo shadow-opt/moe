@@ -6,6 +6,7 @@ from utils import MujocoRenderUtils
 
 import os
 import time
+import threading
 import mujoco.viewer
 import mujoco
 import numpy as np
@@ -103,10 +104,93 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
     return command_obs
 
 
+class KeyboardCommandController:
+    def __init__(self, max_cmd):
+        try:
+            from pynput import keyboard as pynput_keyboard
+        except ImportError as exc:
+            raise ImportError(
+                "Keyboard control requires pynput. Install it in the moe env with: pip install pynput"
+            ) from exc
+
+        self.max_cmd = np.asarray(max_cmd, dtype=np.float32)
+        self.keys = set()
+        self.edge_keys = []
+        self.lock = threading.Lock()
+        self.keyboard = pynput_keyboard
+        self.listener = pynput_keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
+        self.listener.start()
+
+    def normalize_key(self, key):
+        special_keys = {
+            self.keyboard.Key.up: "up",
+            self.keyboard.Key.down: "down",
+            self.keyboard.Key.left: "left",
+            self.keyboard.Key.right: "right",
+            self.keyboard.Key.space: "space",
+        }
+        if key in special_keys:
+            return special_keys[key]
+        char = getattr(key, "char", None)
+        if char is not None:
+            return char.lower()
+        return None
+
+    def on_press(self, key):
+        key_name = self.normalize_key(key)
+        if key_name is None:
+            return
+        with self.lock:
+            if key_name not in self.keys and key_name in ("h", "r"):
+                self.edge_keys.append(key_name)
+            self.keys.add(key_name)
+
+    def on_release(self, key):
+        key_name = self.normalize_key(key)
+        if key_name is None:
+            return
+        with self.lock:
+            self.keys.discard(key_name)
+
+    def update(self, command_obs):
+        with self.lock:
+            keys = set(self.keys)
+            edge_keys = self.edge_keys
+            self.edge_keys = []
+
+        if "r" in edge_keys:
+            command_obs[:] = 0.0
+        elif "h" in edge_keys and len(command_obs) > 3:
+            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.0
+
+        if "space" in keys:
+            command_obs[:3] = 0.0
+        else:
+            vx_axis = float(("w" in keys or "up" in keys) - ("s" in keys or "down" in keys))
+            vy_axis = float(("a" in keys or "left" in keys) - ("d" in keys or "right" in keys))
+            wz_axis = float(("q" in keys) - ("e" in keys))
+            command_obs[0] = vx_axis * self.max_cmd[0]
+            command_obs[1] = vy_axis * self.max_cmd[1]
+            command_obs[2] = wz_axis * self.max_cmd[2]
+
+        if len(command_obs) > 4:
+            command_obs[4:] = 0.0
+        return command_obs
+
+    def stop(self):
+        self.listener.stop()
+
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--config", type=str, default="win.yaml", help="Config file name under deploy/deploy_mujoco/configs")
+    parser.add_argument(
+        "--control",
+        choices=["xbox", "keyboard", "config"],
+        default="xbox",
+        help="Command input source: xbox joystick, keyboard hotkeys in the MuJoCo viewer, or static config cmd_init.",
+    )
     parser.add_argument("--save-video", action="store_true", help="Whether to save video of the simulation.")
     parser.add_argument("--visualize-moe-weights", action="store_true", help="Whether to visualize mixture of experts weights.")
     parser.add_argument("--save-moe-latent", action="store_true", help="Whether to save mixture of experts latent vectors.")
@@ -115,19 +199,26 @@ if __name__ == "__main__":
     visualize_moe_weights = args.visualize_moe_weights
     save_moe_latent = args.save_moe_latent
     config_file = args.config
+    control_mode = args.control
     # config_file = "win_go2.yaml"
-    pygame.init()
-    pygame.joystick.init()
     use_joystick = False
     joystick = None
     button_state = {}
-    if pygame.joystick.get_count() > 0:
-        joystick = pygame.joystick.Joystick(0)
-        joystick.init()
-        use_joystick = True
-        print(f"Detected Joystick: {joystick.get_name()}")
+    keyboard_controller = None
+    if control_mode == "xbox":
+        pygame.init()
+        pygame.joystick.init()
+        if pygame.joystick.get_count() > 0:
+            joystick = pygame.joystick.Joystick(0)
+            joystick.init()
+            use_joystick = True
+            print(f"Detected Joystick: {joystick.get_name()}")
+        else:
+            print("No Joystick detected. Using default commands from config.")
+    elif control_mode == "keyboard":
+        print("Keyboard control enabled: hold W/S or Up/Down=vx, A/D or Left/Right=vy, Q/E=wz, Space=stop, H=height, R=reset.")
     else:
-        print("No Joystick detected. Using default commands from config.")
+        print("Using static commands from config cmd_init.")
 
     config_path = f"{LEGGED_GYM_ROOT_DIR}/deploy/deploy_mujoco/configs/{config_file}"
     print(f"Loading config: {config_path}")
@@ -151,6 +242,7 @@ if __name__ == "__main__":
         dof_vel_scale = config["dof_vel_scale"]
         action_scale = config["action_scale"]
         cmd_scale = np.array(config["cmd_scale"], dtype=np.float32)
+        max_cmd = np.array(config["max_cmd"], dtype=np.float32)
         clip_observations = float(config.get("clip_observations", 100.0))
         clip_actions = float(config.get("clip_actions", 100.0))
 
@@ -177,6 +269,8 @@ if __name__ == "__main__":
         )
     if len(cmd) != len(cmd_scale):
         raise ValueError(f"cmd_init len {len(cmd)} != cmd_scale len {len(cmd_scale)}")
+    if len(max_cmd) != 3:
+        raise ValueError(f"max_cmd len {len(max_cmd)} != 3")
     if len(init_base_pos) != 3:
         raise ValueError(f"init_base_pos len {len(init_base_pos)} != 3")
     if len(init_base_quat) != 4:
@@ -297,6 +391,9 @@ if __name__ == "__main__":
         latent_path = os.path.join(latent_save_dir, latent_filename)
         all_latents = []
 
+    if control_mode == "keyboard":
+        keyboard_controller = KeyboardCommandController(max_cmd)
+
     with mujoco.viewer.launch_passive(m, d) as viewer:
         if viewer_camera_mode.lower() == "fixed":
             cam_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, viewer_camera_name)
@@ -324,9 +421,13 @@ if __name__ == "__main__":
             show_str = f"Speed: Vx={local_vel[0]:.2f}, Vy={local_vel[1]:.2f}, Wz={local_ang_vel[2]:.2f}, "
             step_start = time.time()
 
-            if use_joystick and counter % control_decimation == 0:
-                # cmd = get_xbox_command(joystick, config["max_cmd"])
-                cmd = update_velocity_command_from_xbox(cmd, joystick, config["max_cmd"], button_state)
+            if control_mode == "xbox" and use_joystick and counter % control_decimation == 0:
+                # cmd = get_xbox_command(joystick, max_cmd)
+                cmd = update_velocity_command_from_xbox(cmd, joystick, max_cmd, button_state)
+                show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
+                print(show_str, end='\r')
+            elif control_mode == "keyboard" and counter % control_decimation == 0:
+                cmd = keyboard_controller.update(cmd)
                 show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
                 print(show_str, end='\r')
 
@@ -423,4 +524,7 @@ if __name__ == "__main__":
         all_latents = np.array(all_latents)
         np.save(latent_path, all_latents)
         print(f"Latent vectors saved successfully to {latent_path}")
-    pygame.quit()
+    if keyboard_controller is not None:
+        keyboard_controller.stop()
+    if control_mode == "xbox":
+        pygame.quit()

@@ -14,11 +14,12 @@
     <texture name="grid" type="2d" builtin="checker" rgb1=".1 .2 .3" rgb2=".2 .3 .4" width="300" height="300"/>
     <material name="grid" texture="grid" texrepeat="8 8" reflectance=".2"/>
   </asset>
-  <worldbody>
-
-    <body name = "base" pos="0 0 0.5">
+  <!-- <worldbody> -->
+<worldbody>
+    <body name="base_link" pos="3.7 -9.0 0.5">
+    <!-- <body name = "base" pos="0 0 0.5"> -->
       <freejoint name="floating_base"/>
-      <camera name="chase_cam" pos="-2 0 2" xyaxes="0 -1 0 1 0 1"/>
+      <camera name="chase_cam" pos="-3 0 3" xyaxes="0 -1 0 1 0 1"/>
       <inertial pos="-0.000191 0.0000032 0.0006968" mass="5.58" diaginertia="0.037965 0.083111 0.107543"/>
 
       <geom name="trunk" size="0.171 0.1185 0.0434996" pos="-0.0002 0 0.0006991" type="box" rgba="0.749024 0.749024 0.749024 1"/>
