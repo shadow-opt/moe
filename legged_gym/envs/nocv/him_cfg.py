@@ -1,5 +1,40 @@
 from .win_cts_cfg import WINVanillaCTS
+from .win_cfg import WINCfg
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfgHIM
+
+
+class HimlocoCfg(WINCfg):
+    class env(WINCfg.env):
+        pass
+    class init_state(WINCfg.init_state):
+        pass
+    class control(WINCfg.control):
+        pass
+    class asset(WINCfg.asset):
+        pass 
+    class domain_rand(WINCfg.domain_rand):
+        pass
+    class terrain(WINCfg.terrain):
+        pass
+    class commands(WINCfg.commands):
+        command_range_curriculum = [{ # list for command range curriculums at specific training iterations
+            'iter': 200, # training iteration at which the command ranges are updated
+            'lin_vel_x': [-1.0, 1.0], # min max [m/s]
+            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+            'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
+            'heading': [-1.57, 1.57], # min max [rad]
+        }, { # list for command range curriculums at specific training iterations
+            'iter': 600, # training iteration at which the command ranges are updated
+            'lin_vel_x': [-2.0, 2.0], # min max [m/s]
+            'lin_vel_y': [-1.0, 1.0], # min max [m/s]
+            'ang_vel_yaw': [-2.0, 2.0], # min max [rad/s]
+            'heading': [-1.57, 1.57], # min max [rad]
+        }]
+        pass
+    class rewards(WINCfg.rewards):
+        curriculum_rewards = []
+        pass
+    
 
 class HIMCfg(WINVanillaCTS):
     class commands(WINVanillaCTS.commands):
@@ -92,6 +127,7 @@ class HIMCfg(WINVanillaCTS):
         low_base_height_target = 0.2
         base_height_target = 0.34
         only_positive_rewards = True
+
         curriculum_rewards = [
         # 早期强约束身体不要乱跳，后期放开，让策略自己找步态。
         {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 600, 'start_value': 1.0, 'end_value': 0.2},
