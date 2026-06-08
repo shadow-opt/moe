@@ -179,11 +179,14 @@ class HIMActorCritic(nn.Module):
                 f"obs_history last dim mismatch: expected {self.num_actor_obs}, got {obs_history.shape[-1]}"
             )
 
+    def _latest_one_step_obs(self, obs_history):
+        return obs_history[:, -self.num_one_step_obs:]
+
     def update_distribution(self, obs_history):
         self._validate_obs_history_input(obs_history)
         with torch.no_grad():
             vel, latent = self.estimator(obs_history)
-        actor_input = torch.cat((obs_history[:,:self.num_one_step_obs], vel, latent), dim=-1)
+        actor_input = torch.cat((self._latest_one_step_obs(obs_history), vel, latent), dim=-1)
         mean = self.actor(actor_input)
         self.distribution = Normal(mean, mean*0. + self.std)
 
@@ -197,7 +200,7 @@ class HIMActorCritic(nn.Module):
     def act_inference(self, obs_history, observations=None):
         self._validate_obs_history_input(obs_history)
         vel, latent = self.estimator(obs_history)
-        actions_mean = self.actor(torch.cat((obs_history[:,:self.num_one_step_obs], vel, latent), dim=-1))
+        actions_mean = self.actor(torch.cat((self._latest_one_step_obs(obs_history), vel, latent), dim=-1))
         return actions_mean
 
     def evaluate(self, critic_observations, **kwargs):

@@ -178,12 +178,22 @@ class LeggedRobot(BaseTask):
         self.check_termination()
         self.compute_reward()
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
+        termination_ids = env_ids.clone()
+        termination_privileged_obs = None
+        if len(env_ids) > 0 and self.privileged_obs_buf is not None:
+            self.compute_observations()
+            termination_privileged_obs = self.privileged_obs_buf[env_ids].clone()
         self.reset_idx(env_ids)
         # [new] push
         if self.cfg.domain_rand.push_robots:
             self._push_robots()
 
         self.compute_observations() # in some cases a simulation step might be required to refresh some obs (for example body positions)
+        self.extras["termination_ids"] = termination_ids
+        if termination_privileged_obs is None:
+            privileged_dim = self.num_privileged_obs if self.num_privileged_obs is not None else 0
+            termination_privileged_obs = torch.empty((0, privileged_dim), dtype=torch.float, device=self.device)
+        self.extras["termination_privileged_obs"] = termination_privileged_obs
 
         self.last_actions[:] = self.actions[:]
         self.last_dof_vel[:] = self.dof_vel[:]

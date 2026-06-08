@@ -127,6 +127,17 @@ class HIMOnPolicyRunner:
                     critic_obs = privileged_obs if privileged_obs is not None else obs
                     obs, critic_obs, rewards, dones = obs.to(self.device), critic_obs.to(self.device), rewards.to(self.device), dones.to(self.device)
                     next_critic_obs = critic_obs.clone().detach()
+                    termination_ids = infos.get('termination_ids') if isinstance(infos, dict) else None
+                    termination_privileged_obs = infos.get('termination_privileged_obs') if isinstance(infos, dict) else None
+                    if (
+                        termination_ids is not None
+                        and termination_privileged_obs is not None
+                        and termination_ids.numel() > 0
+                        and termination_privileged_obs.shape[0] == termination_ids.numel()
+                    ):
+                        termination_ids = termination_ids.to(self.device).long()
+                        termination_privileged_obs = termination_privileged_obs.to(self.device)
+                        next_critic_obs[termination_ids] = termination_privileged_obs.clone().detach()
 
                     self.history[dones > 0] = 0.0
                     self.history = torch.cat([self.history[:, 1:], obs[:, :self.num_one_step_obs].unsqueeze(1)], dim=1)

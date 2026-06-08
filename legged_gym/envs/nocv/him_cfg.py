@@ -150,6 +150,7 @@ class HIMCfg(WINVanillaCTS):
             # straight_path_deviation = -5 # [NOTE] 新增
             stand_still = -0.5
             collision = -1
+            foot_slip = -0.03
             # orientation = -0.5
             # stumble = -2.
             # x_command_hip_regular = -0.5

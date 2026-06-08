@@ -28,9 +28,7 @@ class HIMEstimator(nn.Module):
 
         self.temporal_steps = temporal_steps
         self.num_one_step_obs = num_one_step_obs
-        # In local WIN privileged layout, target input removes a 3-d command slice
-        # from one-step obs while keeping base linear velocity.
-        self.target_obs_dim = self.num_one_step_obs - 3
+        self.target_obs_dim = self.num_one_step_obs
         self.num_latent = enc_hidden_dims[-1]
         self.max_grad_norm = max_grad_norm
         self.temperature = temperature
@@ -97,33 +95,7 @@ class HIMEstimator(nn.Module):
             self.learning_rate = lr
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = self.learning_rate
-        if next_critic_obs is None:
-            raise ValueError("next_critic_obs must not be None")
-        # Local env privileged obs layout starts with base_lin_vel[0:3], and
-        # places commands at [9:12], so we build a command-free one-step state
-        # by concatenating [0:9] and [12:num_one_step_obs].
-        if next_critic_obs.shape[-1] < self.num_one_step_obs:
-            raise ValueError(
-                f"next_critic_obs last dim must be >= {self.num_one_step_obs}, got {next_critic_obs.shape[-1]}"
-            )
-
-        if self.num_one_step_obs < 12:
-            raise ValueError(
-                f"num_one_step_obs must be >= 12 for command-free slicing, got {self.num_one_step_obs}"
-            )
-
-        vel = next_critic_obs[:, 0:3].detach()
-        next_obs = torch.cat(
-            (
-                next_critic_obs[:, 0:9],
-                next_critic_obs[:, 12:self.num_one_step_obs],
-            ),
-            dim=-1,
-        ).detach()
-        if next_obs.shape[-1] != self.target_obs_dim:
-            raise ValueError(
-                f"next_obs last dim mismatch: expected {self.target_obs_dim}, got {next_obs.shape[-1]}"
-            )
+        vel, next_obs = self._get_target_from_critic(next_critic_obs)
 
         z_s = self.encoder(obs_history)
         z_t = self.target(next_obs)
@@ -157,6 +129,23 @@ class HIMEstimator(nn.Module):
         self.optimizer.step()
 
         return estimation_loss.item(), swap_loss.item()
+
+    def _get_target_from_critic(self, next_critic_obs):
+        if next_critic_obs is None:
+            raise ValueError("next_critic_obs must not be None")
+        required_dim = 3 + self.num_one_step_obs
+        if next_critic_obs.shape[-1] < required_dim:
+            raise ValueError(
+                f"next_critic_obs last dim must be >= {required_dim}, got {next_critic_obs.shape[-1]}"
+            )
+
+        vel = next_critic_obs[:, 0:3].detach()
+        next_obs = next_critic_obs[:, 3:required_dim].detach()
+        if next_obs.shape[-1] != self.target_obs_dim:
+            raise ValueError(
+                f"next_obs last dim mismatch: expected {self.target_obs_dim}, got {next_obs.shape[-1]}"
+            )
+        return vel, next_obs
 
 
 @torch.no_grad()
