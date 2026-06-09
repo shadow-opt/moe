@@ -15,7 +15,7 @@ class HimlocoCfg(WINCfg):
     class domain_rand(WINCfg.domain_rand):
         pass
     class terrain(WINCfg.terrain):
-        terrain_proportions = []
+        
         pass
     
     class commands(WINCfg.commands):
