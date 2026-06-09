@@ -15,8 +15,14 @@ class HimlocoCfg(WINCfg):
     class domain_rand(WINCfg.domain_rand):
         pass
     class terrain(WINCfg.terrain):
+        terrain_proportions = []
         pass
+    
     class commands(WINCfg.commands):
+        command_range_curriculum = []
+        zero_command_curriculum = {'start_iter': 0, 'end_iter': 400, 'start_value': 0.0, 'end_value': 0.1}
+        
+        """
         command_range_curriculum = [{ # list for command range curriculums at specific training iterations
             'iter': 200, # training iteration at which the command ranges are updated
             'lin_vel_x': [-1.0, 1.0], # min max [m/s]
@@ -30,6 +36,19 @@ class HimlocoCfg(WINCfg):
             'ang_vel_yaw': [-2.0, 2.0], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         }]
+        """
+
+        class ranges(WINCfg.commands.ranges):
+            """初始命令范围。
+
+            注意这只是训练起点，后续会被 `command_range_curriculum` 扩到更大范围。
+            新增命令时，也通常要在这里补上对应的取值范围，否则 `_parse_cfg()` / `_update_env_command_ranges()` 无法统一处理。
+            """
+
+            lin_vel_x = [-1.0, 1.0] # min max [m/s]
+            lin_vel_y = [-1.0, 1.0] # min max [m/s]
+            ang_vel_yaw = [-1.5, 1.5]   # min max [rad/s]
+            heading = [-1.57, 1.57] # min max [rad]
         pass
     class rewards(WINCfg.rewards):
         curriculum_rewards = []
