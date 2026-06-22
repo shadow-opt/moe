@@ -142,7 +142,7 @@ class _TorchPolicyExporter(torch.nn.Module):
     def forward_him(self, x):
         x = self.normalizer(x)
         one_step_obs = x[:, :self.num_one_step_obs]
-        self.history = torch.cat([self.history[:, 1:], one_step_obs.unsqueeze(1)], dim=1)
+        self.history = torch.cat([one_step_obs.unsqueeze(1), self.history[:, :-1]], dim=1)
         vel, latent = self.estimator(self.history.flatten(1))
         actor_input = torch.cat([one_step_obs, vel, latent], dim=1)
         return self.actor(actor_input)
@@ -277,7 +277,7 @@ class _OnnxPolicyExporter(torch.nn.Module):
     def forward_him(self, x):
         x = self.normalizer(x)
         vel, latent = self.estimator(x)
-        one_step_obs = x[:, -self.num_one_step_obs:]
+        one_step_obs = x[:, :self.num_one_step_obs]
         actor_input = torch.cat([one_step_obs, vel, latent], dim=1)
         return self.actor(actor_input)
 

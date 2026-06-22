@@ -193,6 +193,9 @@ class LeggedRobot(BaseTask):
         if termination_privileged_obs is None:
             privileged_dim = self.num_privileged_obs if self.num_privileged_obs is not None else 0
             termination_privileged_obs = torch.empty((0, privileged_dim), dtype=torch.float, device=self.device)
+        else:
+            clip_obs = self.cfg.normalization.clip_observations
+            termination_privileged_obs = torch.clip(termination_privileged_obs, -clip_obs, clip_obs)
         self.extras["termination_privileged_obs"] = termination_privileged_obs
 
         self.last_actions[:] = self.actions[:]

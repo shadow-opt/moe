@@ -6,7 +6,7 @@ from legged_gym.envs.nocv.nocv_env import NoCVRobot
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg, NOCVCfgMoECTS
 from legged_gym.envs.nocv.win_env import WINRobot
 from legged_gym.envs.nocv.win_cfg import WINCfg
-from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS
+from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS, WINLowSpeedCfg, WINLowSpeedCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, NCTSCfg
 from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
 from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS
@@ -38,6 +38,7 @@ task_registry.register("go2_dual_moe_cts", Go2Robot, GO2Cfg(), GO2CfgDualMoECTS(
 task_registry.register("nocv", NoCVRobot, NOCVCfg(), NOCVCfgMoECTS())
 task_registry.register("n_cts", NoCVRobot, NCTSCfg(), NOCVCfgCTS())
 task_registry.register("win", WINRobot, WINCfg(), WINCfgMoECTS())
+task_registry.register("win_low_speed", WINRobot, WINLowSpeedCfg(), WINLowSpeedCfgMoECTS())
 task_registry.register("win_cts", WINRobot, WINCTS(), WINCfgCTS())
 task_registry.register("win_v_cts", WINRobot, WINVanillaCTS(), WINCfgCTS())
 task_registry.register("him", WINRobot, HimlocoCfg(), HIMCfgPPO())

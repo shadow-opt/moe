@@ -208,3 +208,67 @@ class WINCfgMoECTS(GO2CfgMoECTS):
         experiment_name = 'win_moe_cts'
         max_iterations = 80000
         save_interval = 10000
+
+
+class WINLowSpeedCfg(WINCfg):
+    """Low-speed WIN variant with tighter joint/action regularization."""
+
+    class terrain(WINCfg.terrain):
+        # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
+        terrain_proportions = [0.2, 0.2, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4]
+
+    class commands(WINCfg.commands):
+        low_height_command_prob = 0.3
+        low_height_terrain_ids = [8]
+        low_height_command_velocity_scale = [0.4, 0.0, 0.0]
+
+        dynamic_resample_commands = False
+        command_range_curriculum = []
+
+        terrain_max_command_ranges = [
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # wave
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # slope
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # rough_slope
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # stairs up
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # stairs down
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # obstacles
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # stepping stones
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # gap
+            {'lin_vel_x': [-0.8, 0.8], 'lin_vel_y': [-0.4, 0.4], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [0.0, 0.0]},  # flat
+        ]
+
+        class ranges(WINCfg.commands.ranges):
+            lin_vel_x = [-0.8, 0.8]
+            lin_vel_y = [-0.4, 0.4]
+            ang_vel_yaw = [-1.0, 1.0]
+            heading = [0.0, 0.0]
+
+    class rewards(WINCfg.rewards):
+        soft_dof_pos_limit = 0.75
+        curriculum_rewards = [
+            {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 500, 'start_value': 1.0, 'end_value': 0.0},
+            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 2000, 'start_value': 1.0, 'end_value': 8.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 3000, 'end_iter': 10000, 'start_value': 1.0, 'end_value': 2.0},
+            {'reward_name': 'stand_still', 'start_iter': 3000, 'end_iter': 12000, 'start_value': 1.0, 'end_value': 3.0},
+            {'reward_name': 'hip_to_default', 'start_iter': 4000, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 0.4},
+            {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 20.0},
+        ]
+
+        class scales(WINCfg.rewards.scales):
+            torques = -2.5e-4
+            dof_pos_limits = -4.0
+            action_rate = -0.03
+            action_smoothness = -0.05
+            similar_to_default = -0.02
+            stand_still = -0.6
+
+
+class WINLowSpeedCfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for the low-speed WIN variant."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'flat_low_speed_guarded'
+        experiment_name = 'win_low_speed_moe_cts'
+        max_iterations = 20000
+        save_interval = 5000

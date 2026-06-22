@@ -106,7 +106,7 @@ class HIMOnPolicyRunner:
         privileged_obs = self.env.get_privileged_observations()
         critic_obs = privileged_obs if privileged_obs is not None else obs
         obs, critic_obs = obs.to(self.device), critic_obs.to(self.device)
-        self.history = torch.cat([self.history[:, 1:], obs[:, :self.num_one_step_obs].unsqueeze(1)], dim=1)
+        self.history = torch.cat([obs[:, :self.num_one_step_obs].unsqueeze(1), self.history[:, :-1]], dim=1)
         self.alg.actor_critic.train() # switch to train mode (for dropout for example)
 
         ep_infos = []
@@ -140,7 +140,7 @@ class HIMOnPolicyRunner:
                         next_critic_obs[termination_ids] = termination_privileged_obs.clone().detach()
 
                     self.history[dones > 0] = 0.0
-                    self.history = torch.cat([self.history[:, 1:], obs[:, :self.num_one_step_obs].unsqueeze(1)], dim=1)
+                    self.history = torch.cat([obs[:, :self.num_one_step_obs].unsqueeze(1), self.history[:, :-1]], dim=1)
 
                     self.alg.process_env_step(rewards, dones, infos, next_critic_obs)
                 
@@ -263,8 +263,12 @@ class HIMOnPolicyRunner:
         loaded_dict = torch.load(path)
         self.alg.actor_critic.load_state_dict(loaded_dict['model_state_dict'])
         if load_optimizer:
-            self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])
-            self.alg.actor_critic.estimator.optimizer.load_state_dict(loaded_dict['estimator_optimizer_state_dict'])
+            try:
+                self.alg.optimizer.load_state_dict(loaded_dict['optimizer_state_dict'])
+            except ValueError as exc:
+                print(f"Skipping HIM PPO optimizer state due to parameter mismatch: {exc}")
+            if 'estimator_optimizer_state_dict' in loaded_dict:
+                self.alg.actor_critic.estimator.optimizer.load_state_dict(loaded_dict['estimator_optimizer_state_dict'])
         self.current_learning_iteration = loaded_dict['iter']
         return loaded_dict['infos']
 

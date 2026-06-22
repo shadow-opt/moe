@@ -64,7 +64,11 @@ class HIMPPO:
         self.actor_critic = actor_critic
         self.actor_critic.to(self.device)
         self.storage = None # initialized later
-        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=learning_rate)
+        self.ppo_parameters = [
+            param for name, param in self.actor_critic.named_parameters()
+            if not name.startswith("estimator.")
+        ]
+        self.optimizer = optim.Adam(self.ppo_parameters, lr=learning_rate)
         self.transition = HIMRolloutStorage.Transition()
 
         # PPO parameters
@@ -174,7 +178,7 @@ class HIMPPO:
                 # Gradient step
                 self.optimizer.zero_grad()
                 loss.backward()
-                nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+                nn.utils.clip_grad_norm_(self.ppo_parameters, self.max_grad_norm)
                 self.optimizer.step()
 
                 mean_value_loss += value_loss.item()
