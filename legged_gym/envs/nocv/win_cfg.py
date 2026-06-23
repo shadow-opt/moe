@@ -305,7 +305,7 @@ class WINGuardedCfg(WINCfg):
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 5000, 'end_iter': 15000, 'start_value': 1.0, 'end_value': 2.0},
-            {'reward_name': 'stand_still', 'start_iter': 5000, 'end_iter': 20000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'stand_still', 'start_iter': 5000, 'end_iter': 20000, 'start_value': 1.0, 'end_value': 4.0},
             {'reward_name': 'hip_to_default', 'start_iter': 10000, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 20.0},
