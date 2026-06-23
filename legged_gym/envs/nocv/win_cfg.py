@@ -328,3 +328,19 @@ class WINGuardedCfgMoECTS(WINCfgMoECTS):
         experiment_name = 'win_guarded_moe_cts'
         max_iterations = 40000
         save_interval = 5000
+
+
+class WINGuardedLongCfg(WINGuardedCfg):
+    """Guarded WIN variant with the original WIN reward curriculum schedule."""
+
+    class rewards(WINGuardedCfg.rewards):
+        curriculum_rewards = WINCfg.rewards.curriculum_rewards
+
+
+class WINGuardedLongCfgMoECTS(WINGuardedCfgMoECTS):
+    """MoE CTS runner config for guarded WIN with original WIN training length."""
+
+    class runner(WINGuardedCfgMoECTS.runner):
+        run_name = 'guard_long'
+        experiment_name = 'win_guard_long_moe_cts'
+        max_iterations = WINCfgMoECTS.runner.max_iterations
