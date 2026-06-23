@@ -18,6 +18,12 @@ class WINRobot(Go2Robot):
         super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
         self.num_one_step_obs = self.num_obs
         self.num_one_step_privileged_obs = self.num_privileged_obs
+
+    def reset_idx(self, env_ids):
+        super().reset_idx(env_ids)
+        if hasattr(self, "low_speed_feet_air_time"):
+            self.low_speed_feet_air_time[env_ids] = 0.0
+            self.low_speed_last_contacts[env_ids] = False
         
 
 
@@ -269,6 +275,110 @@ class WINRobot(Go2Robot):
         if low_height_mask.any():
             self.commands[low_height_mask, 2] *= self.low_height_command_velocity_scale[2]
 
+    def _apply_monotonic_command_sampling(self, env_ids):
+        """Project some sampled commands to pure x, pure y, or pure yaw commands."""
+        prob = getattr(self.cfg.commands, "monotonic_command_prob", 0.0)
+        if prob <= 0.0 or len(env_ids) == 0:
+            return
+
+        monotonic_mask = torch.rand(len(env_ids), device=self.device) < prob
+        monotonic_env_ids = env_ids[monotonic_mask]
+        if len(monotonic_env_ids) == 0:
+            return
+
+        type_probs = torch.tensor(
+            getattr(self.cfg.commands, "monotonic_command_type_probs", [1.0, 0.0, 0.0]),
+            dtype=torch.float,
+            device=self.device,
+        )
+        if type_probs.numel() != 3 or torch.sum(type_probs) <= 0.0:
+            raise RuntimeError(
+                "monotonic_command_type_probs must contain three positive-sum values "
+                "for x/y/yaw command sampling"
+            )
+        type_probs = type_probs / torch.sum(type_probs)
+        type_ids = torch.multinomial(type_probs, len(monotonic_env_ids), replacement=True)
+
+        old_commands = self.commands[monotonic_env_ids, :3].clone()
+        self.commands[monotonic_env_ids, :3] = 0.0
+
+        x_mask = type_ids == 0
+        y_mask = type_ids == 1
+        yaw_mask = type_ids == 2
+        if x_mask.any():
+            ids = monotonic_env_ids[x_mask]
+            self.commands[ids, 0] = old_commands[x_mask, 0]
+        if y_mask.any():
+            ids = monotonic_env_ids[y_mask]
+            self.commands[ids, 1] = old_commands[y_mask, 1]
+        if yaw_mask.any():
+            ids = monotonic_env_ids[yaw_mask]
+            self.commands[ids, 2] = old_commands[yaw_mask, 2]
+
+    def _apply_min_abs_lin_vel_x_by_terrain(self, env_ids):
+        min_abs_by_terrain = getattr(self.cfg.commands, "min_abs_lin_vel_x_by_terrain", {})
+        if not min_abs_by_terrain or len(env_ids) == 0 or not hasattr(self, "terrain_ids"):
+            return
+
+        for terrain_id, min_abs_lin_vel_x in min_abs_by_terrain.items():
+            min_abs_lin_vel_x = float(min_abs_lin_vel_x)
+            if min_abs_lin_vel_x <= 0.0:
+                continue
+
+            terrain_env_ids = env_ids[self.terrain_ids[env_ids] == int(terrain_id)]
+            if len(terrain_env_ids) == 0:
+                continue
+
+            abs_lin_vel_x = torch.abs(self.commands[terrain_env_ids, 0])
+            small_nonzero_mask = (abs_lin_vel_x > 0.0) & (abs_lin_vel_x < min_abs_lin_vel_x)
+            if not small_nonzero_mask.any():
+                continue
+
+            small_nonzero_env_ids = terrain_env_ids[small_nonzero_mask]
+            terrain_command_ranges = self.cfg.commands.terrain_max_command_ranges[int(terrain_id)]
+            min_abs_tensor = torch.full((len(small_nonzero_env_ids),), min_abs_lin_vel_x, device=self.device)
+            cap_lower = torch.full_like(min_abs_tensor, terrain_command_ranges["lin_vel_x"][0])
+            cap_upper = torch.full_like(min_abs_tensor, terrain_command_ranges["lin_vel_x"][1])
+            current_lower = self.env_command_ranges["lin_vel_x"][small_nonzero_env_ids, 0]
+            current_upper = self.env_command_ranges["lin_vel_x"][small_nonzero_env_ids, 1]
+
+            lower = torch.maximum(torch.minimum(current_lower, -min_abs_tensor), cap_lower)
+            upper = torch.minimum(torch.maximum(current_upper, min_abs_tensor), cap_upper)
+            neg_available = lower <= -min_abs_lin_vel_x
+            pos_available = upper >= min_abs_lin_vel_x
+            valid_nonzero_mask = neg_available | pos_available
+            if valid_nonzero_mask.any():
+                valid_env_ids = small_nonzero_env_ids[valid_nonzero_mask]
+                valid_lower = lower[valid_nonzero_mask]
+                valid_upper = upper[valid_nonzero_mask]
+                valid_min_abs = min_abs_tensor[valid_nonzero_mask]
+                width_neg = torch.nn.functional.relu(-valid_min_abs - valid_lower)
+                width_pos = torch.nn.functional.relu(valid_upper - valid_min_abs)
+                interval_mask = width_neg + width_pos > 1e-6
+                if interval_mask.any():
+                    interval_env_ids = valid_env_ids[interval_mask]
+                    self.commands[interval_env_ids, 0] = sample_disjoint_intervals(
+                        interval_env_ids,
+                        valid_min_abs[interval_mask],
+                        valid_lower[interval_mask],
+                        valid_upper[interval_mask],
+                        self.device,
+                    )
+                point_mask = ~interval_mask
+                if point_mask.any():
+                    point_env_ids = valid_env_ids[point_mask]
+                    point_neg_available = valid_lower[point_mask] <= -valid_min_abs[point_mask]
+                    point_pos_available = valid_upper[point_mask] >= valid_min_abs[point_mask]
+                    choose_pos = torch.rand(len(point_env_ids), device=self.device) < 0.5
+                    choose_pos = torch.where(point_neg_available & point_pos_available, choose_pos, point_pos_available)
+                    self.commands[point_env_ids, 0] = torch.where(
+                        choose_pos,
+                        valid_min_abs[point_mask],
+                        -valid_min_abs[point_mask],
+                    )
+            if (~valid_nonzero_mask).any():
+                self.commands[small_nonzero_env_ids[~valid_nonzero_mask], 0] = 0.0
+
     def _post_physics_step_callback(self):
         super()._post_physics_step_callback()
         self._apply_low_height_heading_yaw_limit()
@@ -471,6 +581,7 @@ class WINRobot(Go2Robot):
                 self.last_is_limit_vel[env_ids] = False
             min_prob += self.limit_vel_prob
 
+        zero_command_env_ids = env_ids[:0]
         if self.cfg.commands.zero_command_curriculum is not None:
             self.zero_command_proba = self.get_current_scale(self.cfg.commands.zero_command_curriculum)
         if self.zero_command_proba > 0.0:
@@ -483,14 +594,14 @@ class WINRobot(Go2Robot):
                 max=self.cfg.commands.resampling_time / self.dt,
             )
             zero_mask = (rand_prob >= min_prob) * (rand_prob < max_prob) * (next_resampling_step > 0.0)
-            zero_env_ids = env_ids[zero_mask]
-            if len(zero_env_ids) > 0:
-                self.commands[zero_env_ids, :2] = 0.0
-                self.commands_resampling_step[zero_env_ids] = next_resampling_step[zero_mask]
+            zero_command_env_ids = env_ids[zero_mask]
+            if len(zero_command_env_ids) > 0:
+                self.commands[zero_command_env_ids, :2] = 0.0
+                self.commands_resampling_step[zero_command_env_ids] = next_resampling_step[zero_mask]
                 if self.cfg.commands.limit_ang_vel_at_zero_command_prob > 0.0:
-                    ang_vel_rand = torch.rand(len(zero_env_ids), device=self.device)
+                    ang_vel_rand = torch.rand(len(zero_command_env_ids), device=self.device)
                     add_ang_mask = ang_vel_rand < self.cfg.commands.limit_ang_vel_at_zero_command_prob
-                    add_ang_env_ids = zero_env_ids[add_ang_mask]
+                    add_ang_env_ids = zero_command_env_ids[add_ang_mask]
                     if len(add_ang_env_ids) > 0:
                         direction_rand = torch.rand(len(add_ang_env_ids), device=self.device)
                         self.commands[add_ang_env_ids, 2] = torch.where(
@@ -513,6 +624,7 @@ class WINRobot(Go2Robot):
         self.commands[env_ids, 5] = self.cfg.commands.normal_terrain_command
         self.commands[env_ids, 6] = self.cfg.commands.normal_terrain_command
 
+        low_height_env_ids = env_ids[:0]
         low_height_eligible_env_ids = env_ids[self._get_low_height_terrain_mask(env_ids)]
         if len(low_height_eligible_env_ids) > 0:
             # 只对允许的 terrain 按概率采样低高度档位。
@@ -525,6 +637,17 @@ class WINRobot(Go2Robot):
                 if self.cfg.commands.heading_command and len(stopped_heading_env_ids) > 0:
                     self.commands[stopped_heading_env_ids, 2] *= self.low_height_command_velocity_scale[2]
 
+        monotonic_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
+        if len(low_height_env_ids) > 0:
+            monotonic_candidate_mask &= ~(
+                env_ids.unsqueeze(1) == low_height_env_ids.unsqueeze(0)
+            ).any(dim=1)
+        if len(zero_command_env_ids) > 0:
+            monotonic_candidate_mask &= ~(
+                env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
+            ).any(dim=1)
+        self._apply_monotonic_command_sampling(env_ids[monotonic_candidate_mask])
+
         special_terrain_5_env_ids = env_ids[self._get_special_terrain_5_mask(env_ids)]
         if special_terrain_5_env_ids.numel() > 0:
             special_terrain_5_mask = torch.rand(len(special_terrain_5_env_ids), device=self.device) < self.cfg.commands.special_terrain_probs
@@ -535,6 +658,7 @@ class WINRobot(Go2Robot):
             special_terrain_6_mask = torch.rand(len(special_terrain_6_env_ids), device=self.device) < self.cfg.commands.special_terrain_probs
             self.commands[special_terrain_6_env_ids[special_terrain_6_mask], 6] = self.cfg.commands.special_terrain_command
 
+        self._apply_min_abs_lin_vel_x_by_terrain(env_ids)
         self.commands_xy_accumulation[env_ids] += self.commands[env_ids, :2]
 
 
@@ -678,6 +802,25 @@ class WINRobot(Go2Robot):
         foot_speed_norm = torch.norm(feet_xy_vel, dim=2)
         rew = torch.sqrt(foot_speed_norm) * contact
         return torch.sum(rew, dim=1)
+
+    def _reward_low_speed_feet_air_time(self):
+        """Encourage clear stepping for low-speed translational commands."""
+        xy_command_norm = torch.norm(self.commands[:, :2], dim=1)
+        low_speed_mask = (xy_command_norm > 0.1) & (xy_command_norm < 0.5)
+        low_speed_mask = low_speed_mask & (~self._get_is_low_height_command_mask())
+
+        if not hasattr(self, "low_speed_feet_air_time"):
+            self.low_speed_feet_air_time = torch.zeros_like(self.feet_air_time)
+            self.low_speed_last_contacts = torch.zeros_like(self.last_contacts)
+
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
+        contact_filt = torch.logical_or(contact, self.low_speed_last_contacts)
+        self.low_speed_last_contacts = contact
+        first_contact = (self.low_speed_feet_air_time > 0.0) * contact_filt
+        self.low_speed_feet_air_time += self.dt
+        rew_air_time = torch.sum((self.low_speed_feet_air_time - 0.5) * first_contact, dim=1)
+        self.low_speed_feet_air_time *= ~contact_filt
+        return rew_air_time * low_speed_mask.float()
 
     def _reward_low_foot(self):
         """在 special_terrain_6 命令激活时，按悬空脚下探深度惩罚。"""

@@ -929,12 +929,28 @@ class LeggedRobot(BaseTask):
             env_ids (List[int]): ids of environments being reset
         """
         # If the tracking reward is above 80% of the maximum, increase the range of commands
-        if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
-            # 这里只扩 x 方向速度范围，假设主要 curriculum 目标是让机器人“先会走，再走更快”。
-            # 对新手来说，可以把它理解成自动调难度：
-            # 学得足够好了，就给更大的速度任务范围。
-            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
+        threshold = getattr(self.cfg.commands, "command_curriculum_threshold", 0.8)
+        if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > threshold * self.reward_scales["tracking_lin_vel"]:
+            step = getattr(self.cfg.commands, "command_curriculum_step", 0.5)
+            dims = getattr(self.cfg.commands, "command_curriculum_dims", ["lin_vel_x"])
+            max_ranges = getattr(self.cfg.commands, "max_command_curriculum_ranges", {})
+            updated = False
+            for dim in dims:
+                if dim not in self.command_ranges:
+                    continue
+                max_range = max_ranges.get(dim, [-self.cfg.commands.max_curriculum, self.cfg.commands.max_curriculum])
+                old_min, old_max = self.command_ranges[dim]
+                self.command_ranges[dim][0] = np.clip(old_min - step, max_range[0], 0.0)
+                self.command_ranges[dim][1] = np.clip(old_max + step, 0.0, max_range[1])
+                updated = updated or self.command_ranges[dim][0] != old_min or self.command_ranges[dim][1] != old_max
+            if updated:
+                self.max_lin_vel = max(
+                    abs(self.command_ranges["lin_vel_x"][0]),
+                    abs(self.command_ranges["lin_vel_x"][1]),
+                    abs(self.command_ranges["lin_vel_y"][0]),
+                    abs(self.command_ranges["lin_vel_y"][1]),
+                )
+                self._update_env_command_ranges()
 
 
     def _get_noise_scale_vec(self, cfg):
@@ -1166,16 +1182,14 @@ class LeggedRobot(BaseTask):
                 terrain_command_ranges['ang_vel_yaw'][1],
                 self.command_ranges['ang_vel_yaw'][1]
             )
-            if self.cfg.commands.heading_command:
-                # 只有 heading 模式打开时，第 4 维 heading range 才真正有意义。
-                self.env_command_ranges['heading'][env_ids, 0] = max(
-                    terrain_command_ranges['heading'][0],
-                    self.command_ranges['heading'][0]
-                )
-                self.env_command_ranges['heading'][env_ids, 1] = min(
-                    terrain_command_ranges['heading'][1],
-                    self.command_ranges['heading'][1]
-                )
+            self.env_command_ranges['heading'][env_ids, 0] = max(
+                terrain_command_ranges['heading'][0],
+                self.command_ranges['heading'][0]
+            )
+            self.env_command_ranges['heading'][env_ids, 1] = min(
+                terrain_command_ranges['heading'][1],
+                self.command_ranges['heading'][1]
+            )
 
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, whcih will be called to compute the total reward.

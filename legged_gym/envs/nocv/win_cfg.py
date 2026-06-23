@@ -272,3 +272,59 @@ class WINLowSpeedCfgMoECTS(WINCfgMoECTS):
         experiment_name = 'win_low_speed_moe_cts'
         max_iterations = 20000
         save_interval = 5000
+
+
+class WINGuardedCfg(WINCfg):
+    """WIN variant that keeps the original task distribution with stronger action and joint-limit guards."""
+
+    class commands(WINCfg.commands):
+        curriculum = True
+        dynamic_resample_commands = False
+        command_range_curriculum = []
+        command_curriculum_step = 0.2
+        command_curriculum_dims = ["lin_vel_x", "lin_vel_y", "ang_vel_yaw"]
+        command_curriculum_threshold = 0.8
+        monotonic_command_prob = 0.3
+        monotonic_command_type_probs = [0.45, 0.25, 0.30]
+        min_abs_lin_vel_x_by_terrain = {3: 0.3}
+        max_command_curriculum_ranges = {
+            "lin_vel_x": [-1.7, 1.7],
+            "lin_vel_y": [-0.7, 0.7],
+            "ang_vel_yaw": [-1.5, 1.5],
+        }
+
+        class ranges(WINCfg.commands.ranges):
+            lin_vel_x = [-0.2, 0.2]
+            lin_vel_y = [-0.2, 0.2]
+            ang_vel_yaw = [-0.5, 0.5]
+            heading = [-1.57, 1.57]
+
+    class rewards(WINCfg.rewards):
+        soft_dof_pos_limit = 0.75
+        curriculum_rewards = [
+            {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 5000, 'end_iter': 15000, 'start_value': 1.0, 'end_value': 2.0},
+            {'reward_name': 'stand_still', 'start_iter': 5000, 'end_iter': 20000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_default', 'start_iter': 10000, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 0.4},
+            {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 20.0},
+        ]
+
+        class scales(WINCfg.rewards.scales):
+            torques = -2.5e-4
+            dof_pos_limits = -4.0
+            action_rate = -0.03
+            action_smoothness = -0.05
+            foot_slip = -0.01
+            low_speed_feet_air_time = 0.5
+
+
+class WINGuardedCfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for the guarded WIN variant."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'compact_joint_action_guarded'
+        experiment_name = 'win_guarded_moe_cts'
+        max_iterations = 40000
+        save_interval = 5000

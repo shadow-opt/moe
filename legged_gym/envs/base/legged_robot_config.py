@@ -83,6 +83,10 @@ class LeggedRobotCfg(BaseConfig):
 
         curriculum = False
         max_curriculum = 1.
+        command_curriculum_step = 0.5
+        command_curriculum_dims = ["lin_vel_x"]
+        command_curriculum_threshold = 0.8
+        max_command_curriculum_ranges = {}
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         # `num_commands` 决定的是内部 `self.commands` buffer 的容量，
         # 不等于 actor/critic 一定会显式看到同样多的命令维度。
@@ -97,6 +101,9 @@ class LeggedRobotCfg(BaseConfig):
         limit_vel_invert_when_continuous = True # invert the limit logic when using continuous sample limit velocity commands
         limit_vel = {"lin_vel_x": [-1, 1], "lin_vel_y": [-1, 1], "ang_vel_yaw": [-1, 0, 1]} # sample vel commands from min [-1] or zero [0] or max [1] range only
         stop_heading_at_limit = True # stop heading updates when vel is limited
+        min_abs_lin_vel_x_by_terrain = {}
+        monotonic_command_prob = 0.0
+        monotonic_command_type_probs = [1.0, 0.0, 0.0] # x, y, yaw
         dynamic_resample_commands = False # sample commands with low bounds
         command_range_curriculum = [] # list for command range curriculums at specific training iterations
         # eg: [{
