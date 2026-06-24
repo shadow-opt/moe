@@ -6,7 +6,7 @@ from legged_gym.envs.nocv.nocv_env import NoCVRobot
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg, NOCVCfgMoECTS
 from legged_gym.envs.nocv.win_env import WINRobot
 from legged_gym.envs.nocv.win_cfg import WINCfg
-from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS, WINLowSpeedCfg, WINLowSpeedCfgMoECTS, WINGuardedCfg, WINGuardedCfgMoECTS, WINGuardedLongCfg, WINGuardedLongCfgMoECTS
+from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS, WINLowSpeedCfg, WINLowSpeedCfgMoECTS, WINFlatSlowCfg, WINFlatSlowCfgMoECTS, WINGuardedCfg, WINGuardedCfgMoECTS, WINGuardedLongCfg, WINGuardedLongCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, NCTSCfg
 from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
 from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS
@@ -39,6 +39,7 @@ task_registry.register("nocv", NoCVRobot, NOCVCfg(), NOCVCfgMoECTS())
 task_registry.register("n_cts", NoCVRobot, NCTSCfg(), NOCVCfgCTS())
 task_registry.register("win", WINRobot, WINCfg(), WINCfgMoECTS())
 task_registry.register("win_low_speed", WINRobot, WINLowSpeedCfg(), WINLowSpeedCfgMoECTS())
+task_registry.register("win_flat_slow", WINRobot, WINFlatSlowCfg(), WINFlatSlowCfgMoECTS())
 task_registry.register("win_guarded", WINRobot, WINGuardedCfg(), WINGuardedCfgMoECTS())
 task_registry.register("win_guard", WINRobot, WINGuardedCfg(), WINGuardedCfgMoECTS())
 task_registry.register("win_guard_long", WINRobot, WINGuardedLongCfg(), WINGuardedLongCfgMoECTS())

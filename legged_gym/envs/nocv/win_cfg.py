@@ -81,7 +81,7 @@ class WINCfg(GO2Cfg):
         # 低高度档位只在 slope / rough_slope / flat 上启用。
         # mesh_type = 'plane'
         # terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
-        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.15, 0.0, 0.0, 0.3] 
+        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.1, 0.0, 0.0, 0.35] 
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
@@ -100,7 +100,7 @@ class WINCfg(GO2Cfg):
         normal_body_height_command = 0.0
         # 低高度档位的 command 值。
         low_body_height_command = 1.0 # 对允许的地形，重采样 command 时有多大概率切到低高度档位。
-        low_height_command_prob = 0.4
+        low_height_command_prob = 0.3
         # 仅在这些 terrain id 上允许采样低高度档位：
         # 1 = slope, 2 = rough_slope, 8 = flat
         low_height_terrain_ids = [8]  # slope, rough_slope, flat
@@ -157,15 +157,18 @@ class WINCfg(GO2Cfg):
     class rewards(GO2Cfg.rewards):
         # 正常档位继续沿用父类中的 `base_height_target`。
         # 低高度档位下，改为追踪这个更低的目标高度。
-        low_base_height_target = 0.2
+        low_base_height_target = 0.18
         base_height_target = 0.37
+        soft_dof_pos_limit = 0.75
+        soft_dof_vel_limit = 0.8
+        soft_torque_limit = 0.8
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 2.5},
             {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
@@ -187,12 +190,18 @@ class WINCfg(GO2Cfg):
             ang_vel_xy = -0.05
             lateral_yaw_tracking_error = -0.6
             stand_still = -1.0
-            action_smoothness = -0.01
+        
             # foot_slip = -0.03
             hip_to_zero = -0.5
-                
+            # stand_still = -0.6    
             # orientation = -0.1
             # stumble = -0.5
+            torques = -3e-4
+            dof_pos_limits = -4.0
+            action_rate = -0.03
+            action_smoothness = -0.05
+            foot_slip = -0.01
+            low_speed_feet_air_time = 0.5
             x_command_hip_regular = -0.2
             
             
@@ -274,6 +283,29 @@ class WINLowSpeedCfgMoECTS(WINCfgMoECTS):
         save_interval = 5000
 
 
+class WINFlatSlowCfg(WINCfg):
+    """WIN variant that keeps dynamic commands while adding extra flat low-speed and monotonic samples."""
+
+    class commands(WINCfg.commands):
+        flat_low_speed_command_prob = 0.2
+        flat_low_speed_terrain_ids = [8]
+        flat_low_speed_command_ranges = {
+            "lin_vel_x": [-0.5, 0.5],
+            "lin_vel_y": [-0.4, 0.4],
+            "ang_vel_yaw": [-0.8, 0.8],
+        }
+        monotonic_command_prob = 0.3
+        monotonic_command_type_probs = [0.45, 0.25, 0.30]
+
+
+class WINFlatSlowCfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for WIN with extra flat low-speed command coverage."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'flat_slow'
+        experiment_name = 'win_flat_slow_moe_cts'
+
+
 class WINGuardedCfg(WINCfg):
     """WIN variant that keeps the original task distribution with stronger action and joint-limit guards."""
 
@@ -286,10 +318,10 @@ class WINGuardedCfg(WINCfg):
         command_curriculum_threshold = 0.8
         monotonic_command_prob = 0.3
         monotonic_command_type_probs = [0.45, 0.25, 0.30]
-        min_abs_lin_vel_x_by_terrain = {3: 0.3}
+        min_abs_lin_vel_x_by_terrain = {3: 0.55}
         max_command_curriculum_ranges = {
             "lin_vel_x": [-1.7, 1.7],
-            "lin_vel_y": [-0.7, 0.7],
+            "lin_vel_y": [-0.8, 0.8],
             "ang_vel_yaw": [-1.5, 1.5],
         }
 

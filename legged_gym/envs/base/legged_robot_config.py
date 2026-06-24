@@ -102,6 +102,13 @@ class LeggedRobotCfg(BaseConfig):
         limit_vel = {"lin_vel_x": [-1, 1], "lin_vel_y": [-1, 1], "ang_vel_yaw": [-1, 0, 1]} # sample vel commands from min [-1] or zero [0] or max [1] range only
         stop_heading_at_limit = True # stop heading updates when vel is limited
         min_abs_lin_vel_x_by_terrain = {}
+        flat_low_speed_command_prob = 0.0
+        flat_low_speed_terrain_ids = []
+        flat_low_speed_command_ranges = {
+            "lin_vel_x": [-0.5, 0.5],
+            "lin_vel_y": [-0.4, 0.4],
+            "ang_vel_yaw": [-0.8, 0.8],
+        }
         monotonic_command_prob = 0.0
         monotonic_command_type_probs = [1.0, 0.0, 0.0] # x, y, yaw
         dynamic_resample_commands = False # sample commands with low bounds

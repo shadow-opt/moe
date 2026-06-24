@@ -379,6 +379,42 @@ class WINRobot(Go2Robot):
             if (~valid_nonzero_mask).any():
                 self.commands[small_nonzero_env_ids[~valid_nonzero_mask], 0] = 0.0
 
+    def _apply_flat_low_speed_command_sampling(self, env_ids):
+        prob = getattr(self.cfg.commands, "flat_low_speed_command_prob", 0.0)
+        terrain_ids_cfg = getattr(self.cfg.commands, "flat_low_speed_terrain_ids", [])
+        if prob <= 0.0 or len(env_ids) == 0 or not terrain_ids_cfg or not hasattr(self, "terrain_ids"):
+            return
+
+        target_terrain_ids = torch.tensor(terrain_ids_cfg, dtype=torch.long, device=self.device)
+        target_mask = (self.terrain_ids[env_ids].unsqueeze(1) == target_terrain_ids.unsqueeze(0)).any(dim=1)
+        if not target_mask.any():
+            return
+
+        candidate_env_ids = env_ids[target_mask]
+        low_speed_mask = torch.rand(len(candidate_env_ids), device=self.device) < prob
+        low_speed_env_ids = candidate_env_ids[low_speed_mask]
+        if len(low_speed_env_ids) == 0:
+            return
+
+        ranges = getattr(self.cfg.commands, "flat_low_speed_command_ranges", {})
+        for dim, command_idx in (("lin_vel_x", 0), ("lin_vel_y", 1), ("ang_vel_yaw", 2)):
+            if dim not in ranges:
+                continue
+            lower = torch.maximum(
+                torch.full((len(low_speed_env_ids),), ranges[dim][0], device=self.device),
+                self.env_command_ranges[dim][low_speed_env_ids, 0],
+            )
+            upper = torch.minimum(
+                torch.full((len(low_speed_env_ids),), ranges[dim][1], device=self.device),
+                self.env_command_ranges[dim][low_speed_env_ids, 1],
+            )
+            self.commands[low_speed_env_ids, command_idx] = sample_single_interval(
+                low_speed_env_ids,
+                lower,
+                upper,
+                self.device,
+            )
+
     def _post_physics_step_callback(self):
         super()._post_physics_step_callback()
         self._apply_low_height_heading_yaw_limit()
@@ -646,6 +682,7 @@ class WINRobot(Go2Robot):
             monotonic_candidate_mask &= ~(
                 env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
             ).any(dim=1)
+        self._apply_flat_low_speed_command_sampling(env_ids[monotonic_candidate_mask])
         self._apply_monotonic_command_sampling(env_ids[monotonic_candidate_mask])
 
         special_terrain_5_env_ids = env_ids[self._get_special_terrain_5_mask(env_ids)]
