@@ -160,8 +160,8 @@ class WINCfg(GO2Cfg):
         low_base_height_target = 0.18
         base_height_target = 0.37
         soft_dof_pos_limit = 0.75
-        soft_dof_vel_limit = 0.8
-        soft_torque_limit = 0.8
+        soft_dof_vel_limit = 0.75
+        soft_torque_limit = 0.75
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
@@ -196,10 +196,10 @@ class WINCfg(GO2Cfg):
             # stand_still = -0.6    
             # orientation = -0.1
             # stumble = -0.5
-            torques = -2e-4
+            torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.03
-            action_smoothness = -0.05
+            action_rate = -0.02
+            action_smoothness = -0.025
             # foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             x_command_hip_regular = -0.2
