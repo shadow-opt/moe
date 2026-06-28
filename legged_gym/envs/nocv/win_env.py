@@ -24,6 +24,8 @@ class WINRobot(Go2Robot):
         if hasattr(self, "low_speed_feet_air_time"):
             self.low_speed_feet_air_time[env_ids] = 0.0
             self.low_speed_last_contacts[env_ids] = False
+        if hasattr(self, "foot_slip_last_contacts"):
+            self.foot_slip_last_contacts[env_ids] = False
         
 
 
@@ -98,6 +100,16 @@ class WINRobot(Go2Robot):
                 "low_height_command_velocity_scale must contain exactly "
                 f"3 values for x/y/yaw, got {self.low_height_command_velocity_scale}"
             )
+
+        self.foot_slip_deadzone = float(getattr(self.cfg.rewards, "foot_slip_deadzone", 0.0))
+        if self.foot_slip_deadzone < 0.0:
+            raise RuntimeError(f"foot_slip_deadzone must be non-negative, got {self.foot_slip_deadzone}")
+        self.foot_slip_excluded_terrain_ids = torch.tensor(
+            getattr(self.cfg.rewards, "foot_slip_excluded_terrain_ids", []),
+            dtype=torch.long,
+            device=self.device,
+            requires_grad=False,
+        )
         
     def _get_noise_scale_vec(self, cfg):
         """构造 WIN 的 actor observation 噪声向量。
@@ -673,16 +685,22 @@ class WINRobot(Go2Robot):
                 if self.cfg.commands.heading_command and len(stopped_heading_env_ids) > 0:
                     self.commands[stopped_heading_env_ids, 2] *= self.low_height_command_velocity_scale[2]
 
-        monotonic_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
+        flat_low_speed_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
         if len(low_height_env_ids) > 0:
-            monotonic_candidate_mask &= ~(
+            flat_low_speed_candidate_mask &= ~(
                 env_ids.unsqueeze(1) == low_height_env_ids.unsqueeze(0)
             ).any(dim=1)
+        if len(zero_command_env_ids) > 0:
+            flat_low_speed_candidate_mask &= ~(
+                env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
+            ).any(dim=1)
+        self._apply_flat_low_speed_command_sampling(env_ids[flat_low_speed_candidate_mask])
+
+        monotonic_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
         if len(zero_command_env_ids) > 0:
             monotonic_candidate_mask &= ~(
                 env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
             ).any(dim=1)
-        self._apply_flat_low_speed_command_sampling(env_ids[monotonic_candidate_mask])
         self._apply_monotonic_command_sampling(env_ids[monotonic_candidate_mask])
 
         special_terrain_5_env_ids = env_ids[self._get_special_terrain_5_mask(env_ids)]
@@ -726,11 +744,16 @@ class WINRobot(Go2Robot):
         return (torch.square(lateral_vel_error) + torch.square(yaw_vel_error)) * low_height_mask.float()
 
     def _reward_hip_to_zero(self):
-        """低高度特殊指令下，鼓励 4 个 hip 关节角靠近 0，减少横向张腿。"""
+        """低高度纯 x 速度指令下，鼓励 4 个 hip 关节角靠近 0，减少横向张腿。"""
         hip_dof_indices = [0, 3, 6, 9]
         hip_pos = self.dof_pos[:, hip_dof_indices]
         low_height_mask = self._get_is_low_height_command_mask()
-        return torch.sum(torch.square(hip_pos), dim=1) * low_height_mask.float()
+        pure_x_mask = (
+            (torch.abs(self.commands[:, 0]) > 1e-3)
+            & (torch.abs(self.commands[:, 1]) < 1e-3)
+            & (torch.abs(self.commands[:, 2]) < 1e-3)
+        )
+        return torch.sum(torch.square(hip_pos), dim=1) * (low_height_mask & pure_x_mask).float()
 
     def _reward_correct_base_height(self):
         """按 command 档位切换目标高度的 base-height reward。
@@ -833,11 +856,21 @@ class WINRobot(Go2Robot):
         [脚底打滑惩罚]
         触地时如果脚有水平速度则惩罚
         """
-        # feet_pos = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 0:3]
         feet_xy_vel = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 7:9]
         contact = self.contact_forces[:, self.feet_indices, 2] > 5.
-        foot_speed_norm = torch.norm(feet_xy_vel, dim=2)
-        rew = torch.sqrt(foot_speed_norm) * contact
+        if not hasattr(self, "foot_slip_last_contacts"):
+            self.foot_slip_last_contacts = torch.zeros_like(contact)
+        contact_filt = torch.logical_or(contact, self.foot_slip_last_contacts)
+        self.foot_slip_last_contacts = contact
+
+        foot_speed_norm = torch.relu(torch.norm(feet_xy_vel, dim=2) - self.foot_slip_deadzone)
+        terrain_mask = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+        if hasattr(self, "terrain_ids") and self.foot_slip_excluded_terrain_ids.numel() > 0:
+            terrain_mask = ~(
+                self.terrain_ids.unsqueeze(1) == self.foot_slip_excluded_terrain_ids.unsqueeze(0)
+            ).any(dim=1)
+
+        rew = foot_speed_norm * contact_filt * terrain_mask.unsqueeze(1)
         return torch.sum(rew, dim=1)
 
     def _reward_low_speed_feet_air_time(self):

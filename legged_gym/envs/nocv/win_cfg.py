@@ -107,7 +107,7 @@ class WINCfg(GO2Cfg):
         # 当采到低高度档位时，对速度命令做额外缩放：
         # [lin_vel_x, lin_vel_y, ang_vel_yaw]
         # 这样可以让机器人在压低机身时适当放慢速度，提高可学性与稳定性。
-        low_height_command_velocity_scale = [0.4, 0.0, 0.0]
+        low_height_command_velocity_scale = [0.4, 0.2, 0.5]
 
         special_terrain_options_5 = [3]
         special_terrain_options_6 = [6]
@@ -159,9 +159,11 @@ class WINCfg(GO2Cfg):
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.18
         base_height_target = 0.37
-        soft_dof_pos_limit = 0.81
+        soft_dof_pos_limit = 0.8
         soft_dof_vel_limit = 0.85
         soft_torque_limit = 0.75
+        foot_slip_deadzone = 0.02
+        foot_slip_excluded_terrain_ids = [3, 4]
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
@@ -198,10 +200,11 @@ class WINCfg(GO2Cfg):
             # stumble = -0.5
             torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.015
-            action_smoothness = -0.02
-            # foot_slip = -0.01
-            low_speed_feet_air_time = 0.5
+            action_rate = -0.013
+            feet_air_time = 1.7
+            action_smoothness = -0.013
+            foot_slip = -0.02
+            low_speed_feet_air_time = 1.0
             x_command_hip_regular = -0.2
             
             
@@ -215,7 +218,7 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = 'new_inertial'
         experiment_name = 'win_moe_cts'
-        max_iterations = 80000
+        max_iterations = 120000
         save_interval = 10000
 
 
@@ -348,7 +351,7 @@ class WINGuardedCfg(WINCfg):
             dof_pos_limits = -4.0
             action_rate = -0.03
             action_smoothness = -0.05
-            foot_slip = -0.01
+            foot_slip = -0.03
             low_speed_feet_air_time = 0.5
 
 
