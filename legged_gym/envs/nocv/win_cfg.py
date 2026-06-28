@@ -159,8 +159,8 @@ class WINCfg(GO2Cfg):
         # 低高度档位下，改为追踪这个更低的目标高度。
         low_base_height_target = 0.18
         base_height_target = 0.37
-        soft_dof_pos_limit = 0.75
-        soft_dof_vel_limit = 0.75
+        soft_dof_pos_limit = 0.81
+        soft_dof_vel_limit = 0.85
         soft_torque_limit = 0.75
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
@@ -198,8 +198,8 @@ class WINCfg(GO2Cfg):
             # stumble = -0.5
             torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.02
-            action_smoothness = -0.025
+            action_rate = -0.015
+            action_smoothness = -0.02
             # foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             x_command_hip_regular = -0.2
