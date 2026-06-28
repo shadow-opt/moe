@@ -200,10 +200,10 @@ class WINCfg(GO2Cfg):
             # stumble = -0.5
             torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.013
+            action_rate = -0.014
             feet_air_time = 1.7
-            action_smoothness = -0.013
-            foot_slip = -0.02
+            action_smoothness = -0.014
+            # foot_slip = -0.02
             low_speed_feet_air_time = 1.0
             x_command_hip_regular = -0.2
             
