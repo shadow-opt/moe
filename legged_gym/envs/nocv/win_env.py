@@ -20,6 +20,8 @@ class WINRobot(Go2Robot):
         self.num_one_step_privileged_obs = self.num_privileged_obs
 
     def reset_idx(self, env_ids):
+        if hasattr(self, "low_height_force_normal_next"):
+            self.low_height_force_normal_next[env_ids] = False
         super().reset_idx(env_ids)
         if hasattr(self, "low_speed_feet_air_time"):
             self.low_speed_feet_air_time[env_ids] = 0.0
@@ -100,6 +102,18 @@ class WINRobot(Go2Robot):
                 "low_height_command_velocity_scale must contain exactly "
                 f"3 values for x/y/yaw, got {self.low_height_command_velocity_scale}"
             )
+        self.low_height_force_normal_after_low = bool(
+            getattr(self.cfg.commands, "low_height_force_normal_after_low", False)
+        )
+        self.low_height_require_full_release = bool(
+            getattr(self.cfg.commands, "low_height_require_full_release", True)
+        )
+        self.low_height_force_normal_next = torch.zeros(
+            self.num_envs,
+            dtype=torch.bool,
+            device=self.device,
+            requires_grad=False,
+        )
 
         self.foot_slip_deadzone = float(getattr(self.cfg.rewards, "foot_slip_deadzone", 0.0))
         if self.foot_slip_deadzone < 0.0:
@@ -110,6 +124,14 @@ class WINRobot(Go2Robot):
             device=self.device,
             requires_grad=False,
         )
+        self.low_speed_feet_air_time_min = float(getattr(self.cfg.rewards, "low_speed_feet_air_time_min", 0.3))
+        self.low_speed_feet_air_time_max = float(getattr(self.cfg.rewards, "low_speed_feet_air_time_max", 0.9))
+        if self.low_speed_feet_air_time_max < self.low_speed_feet_air_time_min:
+            raise RuntimeError(
+                "low_speed_feet_air_time_max must be greater than or equal to "
+                f"low_speed_feet_air_time_min, got {self.low_speed_feet_air_time_max} < "
+                f"{self.low_speed_feet_air_time_min}"
+            )
         
     def _get_noise_scale_vec(self, cfg):
         """构造 WIN 的 actor observation 噪声向量。
@@ -675,6 +697,15 @@ class WINRobot(Go2Robot):
         low_height_env_ids = env_ids[:0]
         low_height_eligible_env_ids = env_ids[self._get_low_height_terrain_mask(env_ids)]
         if len(low_height_eligible_env_ids) > 0:
+            if self.low_height_force_normal_after_low:
+                force_normal_mask = self.low_height_force_normal_next[low_height_eligible_env_ids]
+                low_height_eligible_env_ids = low_height_eligible_env_ids[~force_normal_mask]
+
+            if self.low_height_force_normal_after_low and self.low_height_require_full_release:
+                remaining_steps = self.max_episode_length - self.episode_length_buf[low_height_eligible_env_ids]
+                required_steps = 2.0 * self.cfg.commands.resampling_time / self.dt
+                low_height_eligible_env_ids = low_height_eligible_env_ids[remaining_steps >= required_steps]
+
             # 只对允许的 terrain 按概率采样低高度档位。
             low_height_mask = torch.rand(len(low_height_eligible_env_ids), device=self.device) < self.cfg.commands.low_height_command_prob
             low_height_env_ids = low_height_eligible_env_ids[low_height_mask]
@@ -684,6 +715,13 @@ class WINRobot(Go2Robot):
                 stopped_heading_env_ids = low_height_env_ids[self.stop_heading[low_height_env_ids]]
                 if self.cfg.commands.heading_command and len(stopped_heading_env_ids) > 0:
                     self.commands[stopped_heading_env_ids, 2] *= self.low_height_command_velocity_scale[2]
+                if self.low_height_force_normal_after_low:
+                    self.low_height_force_normal_next[low_height_env_ids] = True
+
+        if self.low_height_force_normal_after_low:
+            self.low_height_force_normal_next[env_ids] = False
+            if len(low_height_env_ids) > 0:
+                self.low_height_force_normal_next[low_height_env_ids] = True
 
         flat_low_speed_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
         if len(low_height_env_ids) > 0:
@@ -888,8 +926,8 @@ class WINRobot(Go2Robot):
         self.low_speed_last_contacts = contact
         first_contact = (self.low_speed_feet_air_time > 0.0) * contact_filt
         self.low_speed_feet_air_time += self.dt
-        air_time = torch.clamp(self.low_speed_feet_air_time, max=0.9)
-        rew_air_time = torch.sum((air_time - 0.3) * first_contact, dim=1)
+        air_time = torch.clamp(self.low_speed_feet_air_time, max=self.low_speed_feet_air_time_max)
+        rew_air_time = torch.sum((air_time - self.low_speed_feet_air_time_min) * first_contact, dim=1)
         self.low_speed_feet_air_time *= ~contact_filt
         return rew_air_time * low_speed_mask.float()
 

@@ -3,7 +3,10 @@ policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/go2_moe_cts_137000_0.63
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/exported/policy.onnx"
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/exported/policy.pt"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/flat.xml"
-xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/race_track.xml"
+# xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/race_track.xml"
+xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/rc_field.xml"
+# xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/rc_field.xml"
+
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/stairs.xml"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/cross_slope.xml"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/cross_stairs.xml"

@@ -101,6 +101,8 @@ class WINCfg(GO2Cfg):
         # 低高度档位的 command 值。
         low_body_height_command = 1.0 # 对允许的地形，重采样 command 时有多大概率切到低高度档位。
         low_height_command_prob = 0.3
+        low_height_force_normal_after_low = True
+        low_height_require_full_release = True
         # 仅在这些 terrain id 上允许采样低高度档位：
         # 1 = slope, 2 = rough_slope, 8 = flat
         low_height_terrain_ids = [8]  # slope, rough_slope, flat
@@ -164,14 +166,16 @@ class WINCfg(GO2Cfg):
         soft_torque_limit = 0.75
         foot_slip_deadzone = 0.02
         foot_slip_excluded_terrain_ids = [3, 4]
+        low_speed_feet_air_time_min = 0.05
+        low_speed_feet_air_time_max = 0.35
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.3},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 2.0},
-            {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
+            # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
             # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
@@ -190,8 +194,8 @@ class WINCfg(GO2Cfg):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.05
-            lateral_yaw_tracking_error = -0.1
-            stand_still = -1.0
+            lateral_yaw_tracking_error = -0.22
+            stand_still = -0.6
         
             # foot_slip = -0.03
             hip_to_zero = -0.5
@@ -203,8 +207,8 @@ class WINCfg(GO2Cfg):
             action_rate = -0.014
             feet_air_time = 1.0
             action_smoothness = -0.014
-            foot_slip = -0.03
-            low_speed_feet_air_time = 1.2
+            foot_slip = -0.01
+            low_speed_feet_air_time = 1.0
             x_command_hip_regular = -0.2
             
             
@@ -218,6 +222,62 @@ class WINCfgMoECTS(GO2CfgMoECTS):
     class runner(GO2CfgMoECTS.runner):
         run_name = 'new_inertial'
         experiment_name = 'win_moe_cts'
+        max_iterations = 120000
+        save_interval = 10000
+
+
+class WINGo2Cfg(WINCfg):
+    """WIN environment with GO2 reward scales plus selected low-height guards."""
+
+    class rewards(WINCfg.rewards):
+        """ curriculum_rewards = [
+            item for item in WINCfg.rewards.curriculum_rewards
+            if item['reward_name'] != 'hip_to_default'
+        ] """
+        curriculum_rewards = [
+            {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
+            # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
+            # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 2.0},
+            # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
+            {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
+            {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
+            # {'reward_name': 'dof_power', 'start_iter': 0, 'end_iter': 3000, 'start_value': 1.0, 'end_value': 0.1},
+            # {'reward_name': 'upright', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+        ]
+        
+        class scales(GO2Cfg.rewards.scales):
+            # hip_to_default = 0.0
+            stand_still = -0.6
+            lateral_yaw_tracking_error = -0.22
+            hip_to_zero = -0.5
+
+
+class WINGo2CfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for the WIN + GO2 reward-scale variant."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'go2_reward_scales'
+        experiment_name = 'win_go2_moe_cts'
+        max_iterations = 120000
+        save_interval = 10000
+
+
+class WINGo2StairCfg(WINGo2Cfg):
+    """WIN GO2-reward variant using GO2 terrain-specific command ranges."""
+
+    class commands(WINGo2Cfg.commands):
+        terrain_max_command_ranges = GO2Cfg.commands.terrain_max_command_ranges
+
+
+class WINGo2StairCfgMoECTS(WINGo2CfgMoECTS):
+    """MoE CTS runner config for the stair-command WIN GO2 variant."""
+
+    class runner(WINGo2CfgMoECTS.runner):
+        run_name = 'go2_reward_scales_stair_commands'
+        experiment_name = 'win_go2_stair_moe_cts'
         max_iterations = 120000
         save_interval = 10000
 
@@ -256,13 +316,13 @@ class WINLowSpeedCfg(WINCfg):
             heading = [0.0, 0.0]
 
     class rewards(WINCfg.rewards):
-        soft_dof_pos_limit = 0.75
+        soft_dof_pos_limit = 0.8
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 2000, 'start_value': 1.0, 'end_value': 8.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 3000, 'end_iter': 10000, 'start_value': 1.0, 'end_value': 2.0},
             {'reward_name': 'stand_still', 'start_iter': 3000, 'end_iter': 12000, 'start_value': 1.0, 'end_value': 3.0},
-            {'reward_name': 'hip_to_default', 'start_iter': 4000, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 0.4},
+            # {'reward_name': 'hip_to_default', 'start_iter': 4000, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 20.0},
         ]
@@ -335,13 +395,13 @@ class WINGuardedCfg(WINCfg):
             heading = [-1.57, 1.57]
 
     class rewards(WINCfg.rewards):
-        soft_dof_pos_limit = 0.75
+        soft_dof_pos_limit = 0.8
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 5000, 'end_iter': 15000, 'start_value': 1.0, 'end_value': 2.0},
             {'reward_name': 'stand_still', 'start_iter': 5000, 'end_iter': 20000, 'start_value': 1.0, 'end_value': 4.0},
-            {'reward_name': 'hip_to_default', 'start_iter': 10000, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 0.4},
+            # {'reward_name': 'hip_to_default', 'start_iter': 10000, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 20.0},
         ]
