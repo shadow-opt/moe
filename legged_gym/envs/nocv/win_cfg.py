@@ -81,7 +81,7 @@ class WINCfg(GO2Cfg):
         # 低高度档位只在 slope / rough_slope / flat 上启用。
         # mesh_type = 'plane'
         # terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
-        terrain_proportions = [0.1, 0.05, 0.1, 0.2, 0.1, 0.1, 0.0, 0.0, 0.35] 
+        terrain_proportions = [0.15, 0.05, 0.1, 0.25, 0.1, 0.2, 0.0, 0.0, 0.15] 
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
@@ -229,6 +229,9 @@ class WINCfgMoECTS(GO2CfgMoECTS):
 class WINGo2Cfg(WINCfg):
     """WIN environment with GO2 reward scales plus selected low-height guards."""
 
+    class terrain(WINCfg.terrain):
+        terrain_proportions = [0.15, 0.05, 0.1, 0.25, 0.1, 0.20, 0.0, 0.0, 0.15]
+        
     class rewards(WINCfg.rewards):
         """ curriculum_rewards = [
             item for item in WINCfg.rewards.curriculum_rewards
