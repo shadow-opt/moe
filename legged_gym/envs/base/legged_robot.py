@@ -1705,7 +1705,8 @@ class LeggedRobot(BaseTask):
         first_contact = (self.feet_air_time > 0.) * contact_filt
         self.feet_air_time += self.dt
         # 脚在空中时间越久，落地时奖励越高，鼓励更明确的摆腿动作。
-        rew_airTime = torch.sum((self.feet_air_time - 0.5) * first_contact, dim=1) # reward only on first contact with the ground
+        air_time = torch.clamp(self.feet_air_time, max=0.9)
+        rew_airTime = torch.sum((air_time - 0.3) * first_contact, dim=1) # reward only on first contact with the ground
         rew_airTime *= torch.norm(self.commands[:, :2], dim=1) > 0.1 #no reward for zero command
         # 一旦重新接触地面，该脚的 air-time 重新清零，开始下一轮计时。
         self.feet_air_time *= ~contact_filt

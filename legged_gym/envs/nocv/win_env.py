@@ -888,7 +888,8 @@ class WINRobot(Go2Robot):
         self.low_speed_last_contacts = contact
         first_contact = (self.low_speed_feet_air_time > 0.0) * contact_filt
         self.low_speed_feet_air_time += self.dt
-        rew_air_time = torch.sum((self.low_speed_feet_air_time - 0.5) * first_contact, dim=1)
+        air_time = torch.clamp(self.low_speed_feet_air_time, max=0.9)
+        rew_air_time = torch.sum((air_time - 0.3) * first_contact, dim=1)
         self.low_speed_feet_air_time *= ~contact_filt
         return rew_air_time * low_speed_mask.float()
 
