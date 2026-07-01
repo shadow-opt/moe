@@ -168,6 +168,7 @@ class WINCfg(GO2Cfg):
         foot_slip_excluded_terrain_ids = [3, 4]
         low_speed_feet_air_time_min = 0.05
         low_speed_feet_air_time_max = 0.35
+        stand_still_default_pose_settle_sigma = 0.04
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
@@ -195,20 +196,18 @@ class WINCfg(GO2Cfg):
             # straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.05
             lateral_yaw_tracking_error = -0.22
-            stand_still = -0.6
+            stand_still = -0.75
+            stand_still_default_pose = -0.05
         
-            # foot_slip = -0.03
+        
             hip_to_zero = -0.5
-            # stand_still = -0.6    
-            # orientation = -0.1
-            # stumble = -0.5
             torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.014
-            feet_air_time = 1.0
+            action_rate = -0.01
+            feet_air_time = 0.8
             action_smoothness = -0.014
-            foot_slip = -0.01
-            low_speed_feet_air_time = 1.0
+            foot_slip = -0.015
+            low_speed_feet_air_time = 0.8
             x_command_hip_regular = -0.2
             
             
@@ -252,8 +251,9 @@ class WINGo2Cfg(WINCfg):
         ]
         
         class scales(GO2Cfg.rewards.scales):
-            # hip_to_default = 0.0
+            hip_to_default = 0.0
             stand_still = -0.6
+            stand_still_default_pose = -0.05
             lateral_yaw_tracking_error = -0.22
             hip_to_zero = -0.5
 

@@ -1718,9 +1718,7 @@ class LeggedRobot(BaseTask):
         return torch.any(torch.norm(self.contact_forces[:, self.feet_indices, :2], dim=2) >\
              5 *torch.abs(self.contact_forces[:, self.feet_indices, 2]), dim=1)
         
-    def _reward_stand_still(self):
-        # Penalize motion at zero commands
-        # 只有在 command 接近 0 时才启用，防止机器人明明该站住却还在小幅抖腿。
+    def _get_stand_still_command_mask(self):
         # Include yaw command so in-place turning does not get misclassified as "zero command".
         stand_still_mask = torch.norm(self.commands[:, :3], dim=1) < 0.1
         if hasattr(self.cfg, 'commands') and hasattr(self.cfg.commands, 'body_height_command_idx') and hasattr(self.cfg.commands, 'body_height_command_threshold'):
@@ -1728,7 +1726,23 @@ class LeggedRobot(BaseTask):
             if self.commands.shape[1] > cmd_idx:
                 low_height_mask = self.commands[:, cmd_idx] > self.cfg.commands.body_height_command_threshold
                 stand_still_mask = stand_still_mask & (~low_height_mask)
-        return torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1) * stand_still_mask
+        return stand_still_mask
+
+    def _reward_stand_still(self):
+        # Penalize actual body motion at zero commands, without forcing a pose snap.
+        stand_still_mask = self._get_stand_still_command_mask()
+        lin_vel_error = torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
+        yaw_vel_error = torch.square(self.base_ang_vel[:, 2])
+        return (lin_vel_error + yaw_vel_error) * stand_still_mask
+
+    def _reward_stand_still_default_pose(self):
+        # After the robot has mostly settled, softly bias it back to default posture.
+        stand_still_mask = self._get_stand_still_command_mask()
+        motion_error = torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1) + torch.square(self.base_ang_vel[:, 2])
+        settle_sigma = getattr(self.cfg.rewards, "stand_still_default_pose_settle_sigma", 0.05)
+        settled_gate = torch.exp(-motion_error / settle_sigma)
+        pose_error = torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)
+        return pose_error * settled_gate * stand_still_mask
 
     def _reward_feet_contact_forces(self):
         # penalize high contact forces

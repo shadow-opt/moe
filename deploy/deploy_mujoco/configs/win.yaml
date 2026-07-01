@@ -1,8 +1,10 @@
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_moe_cts/exported/policies/policy.pt"
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_flat_slow_moe_cts/exported/Jun27_02-50-12_flat_slow/policy.pt"
-policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/policies/policy.pt"
-policy_path: "/home/sha-opt/moe/logs/win_moe_cts/exported/Mar29_22-26-24_80000_moe_cts/policies/policy.pt"
-policy_path: "/home/sha-opt/moe/logs/win_moe_cts/exported/Apr05_16-55-21_moe_cts_heavy/policies/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jun29_03-10-31_noslip/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/policies/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_moe_cts/exported/Mar29_22-26-24_80000_moe_cts/policies/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_moe_cts/exported/Apr05_16-55-21_moe_cts_heavy/policies/policy.pt"
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/deploy/pre_train/go2/go2_moe_cts_137000_0.6365.pt"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/j60/urdf/scene_terrain.xml"
 # xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/scene_terrain.xml"
@@ -22,8 +24,9 @@ viewer_camera_mode: "fixed"
 viewer_camera_name: "chase_cam"
 
 kps: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30] 
+# kps: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25]
 kds: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] 
-
+# kds: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
 # aaaaa_fixed is kept aligned with j60 joint order: FL, RL, FR, RR.
 # Keep default_angles and mujoco_joint_names aligned to XML qpos order.
 # default_angles: [0.0,  0.65,  -1.05,   0.0, 0.65, -1.05,

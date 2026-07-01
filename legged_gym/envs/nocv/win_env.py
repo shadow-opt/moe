@@ -28,6 +28,8 @@ class WINRobot(Go2Robot):
             self.low_speed_last_contacts[env_ids] = False
         if hasattr(self, "foot_slip_last_contacts"):
             self.foot_slip_last_contacts[env_ids] = False
+        if hasattr(self, "stand_still_foot_slip_last_contacts"):
+            self.stand_still_foot_slip_last_contacts[env_ids] = False
         
 
 
@@ -157,7 +159,7 @@ class WINRobot(Go2Robot):
         noise_vec[12+2*self.num_actions:12+3*self.num_actions] = 0.0
 
         return noise_vec
-    
+
     
     def _get_body_height_command(self):
         """取出新增的 body-height command，shape = `[N, 1]`。
@@ -887,19 +889,15 @@ class WINRobot(Go2Robot):
         penalty = lat_vel_error + yaw_vel_error
 
         return penalty * walking_straight_envs.float()
-    
-        
-    def _reward_foot_slip(self):
-        """
-        [脚底打滑惩罚]
-        触地时如果脚有水平速度则惩罚
-        """
+
+    def _compute_foot_slip(self, last_contacts_attr):
         feet_xy_vel = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices, 7:9]
         contact = self.contact_forces[:, self.feet_indices, 2] > 5.
-        if not hasattr(self, "foot_slip_last_contacts"):
-            self.foot_slip_last_contacts = torch.zeros_like(contact)
-        contact_filt = torch.logical_or(contact, self.foot_slip_last_contacts)
-        self.foot_slip_last_contacts = contact
+        if not hasattr(self, last_contacts_attr):
+            setattr(self, last_contacts_attr, torch.zeros_like(contact))
+        last_contacts = getattr(self, last_contacts_attr)
+        contact_filt = torch.logical_or(contact, last_contacts)
+        setattr(self, last_contacts_attr, contact)
 
         foot_speed_norm = torch.relu(torch.norm(feet_xy_vel, dim=2) - self.foot_slip_deadzone)
         terrain_mask = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
@@ -910,6 +908,20 @@ class WINRobot(Go2Robot):
 
         rew = foot_speed_norm * contact_filt * terrain_mask.unsqueeze(1)
         return torch.sum(rew, dim=1)
+
+    def _reward_foot_slip(self):
+        """
+        [脚底打滑惩罚]
+        触地时如果脚有水平速度则惩罚
+        """
+        return self._compute_foot_slip("foot_slip_last_contacts")
+
+    def _reward_stand_still(self):
+        stand_still_mask = self._get_stand_still_command_mask()
+        lin_vel_error = torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
+        yaw_vel_error = torch.square(self.base_ang_vel[:, 2])
+        foot_slip_error = self._compute_foot_slip("stand_still_foot_slip_last_contacts")
+        return (lin_vel_error + yaw_vel_error + foot_slip_error) * stand_still_mask
 
     def _reward_low_speed_feet_air_time(self):
         """Encourage clear stepping for low-speed translational commands."""
