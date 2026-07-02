@@ -172,7 +172,7 @@ class WINCfg(GO2Cfg):
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
             {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
+            {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.8},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 2.0},
@@ -196,8 +196,8 @@ class WINCfg(GO2Cfg):
             # straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.05
             lateral_yaw_tracking_error = -0.22
-            stand_still = -0.75
-            stand_still_default_pose = -0.05
+            stand_still = -1.0
+            stand_still_default_pose = -0.075
         
         
             hip_to_zero = -0.5
@@ -252,8 +252,8 @@ class WINGo2Cfg(WINCfg):
         
         class scales(GO2Cfg.rewards.scales):
             hip_to_default = 0.0
-            stand_still = -0.75
-            stand_still_default_pose = -0.05
+            stand_still = -1
+            stand_still_default_pose = -0.075
             lateral_yaw_tracking_error = -0.22
             hip_to_zero = -0.5
 
