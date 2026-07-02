@@ -1,6 +1,6 @@
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_moe_cts/exported/policies/policy.pt"
-# policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_flat_slow_moe_cts/exported/Jun27_02-50-12_flat_slow/policy.pt"
-policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jun29_03-10-31_noslip/policy.pt"
+policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_flat_slow_moe_cts/exported/Jun27_02-50-12_flat_slow/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jun29_03-10-31_noslip/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
@@ -50,7 +50,7 @@ clip_actions: 100.0
 cmd_scale: [2.0, 2.0, 0.25, 1.0, 1.0, 1.0]
 num_actions: 12
 num_obs: 48
-max_cmd: [1.2, 0.7, 2.5]
+max_cmd: [0.7, 0.7, 0.7]
 
 cmd_init: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
