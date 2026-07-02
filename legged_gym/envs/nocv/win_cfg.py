@@ -203,7 +203,7 @@ class WINCfg(GO2Cfg):
             hip_to_zero = -0.5
             torques = -1e-4
             dof_pos_limits = -4.0
-            action_rate = -0.01
+            action_rate = -0.006
             feet_air_time = 0.8
             action_smoothness = -0.014
             foot_slip = -0.015
