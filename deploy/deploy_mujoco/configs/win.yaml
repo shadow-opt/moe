@@ -1,6 +1,6 @@
 # policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_moe_cts/exported/policies/policy.pt"
-policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_flat_slow_moe_cts/exported/Jun27_02-50-12_flat_slow/policy.pt"
-# policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jun29_03-10-31_noslip/policy.pt"
+# policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_flat_slow_moe_cts/exported/Jun27_02-50-12_flat_slow/policy.pt"
+policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jun29_03-10-31_noslip/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"

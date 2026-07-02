@@ -227,7 +227,16 @@ class WINCfgMoECTS(GO2CfgMoECTS):
 
 class WINGo2Cfg(WINCfg):
     """WIN environment with GO2 reward scales plus selected low-height guards."""
-
+    class commands(WINCfg.commands):
+        flat_low_speed_command_prob = 0.2
+        flat_low_speed_terrain_ids = [8]
+        flat_low_speed_command_ranges = {
+            "lin_vel_x": [-0.5, 0.5],
+            "lin_vel_y": [-0.4, 0.4],
+            "ang_vel_yaw": [-0.8, 0.8],
+        }
+        monotonic_command_prob = 0.3
+        monotonic_command_type_probs = [0.45, 0.25, 0.30]
     class terrain(WINCfg.terrain):
         terrain_proportions = [0.15, 0.05, 0.1, 0.25, 0.1, 0.20, 0.0, 0.0, 0.15]
         
