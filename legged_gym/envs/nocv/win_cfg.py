@@ -222,7 +222,7 @@ class WINCfgMoECTS(GO2CfgMoECTS):
         run_name = 'new_inertial'
         experiment_name = 'win_moe_cts'
         max_iterations = 120000
-        save_interval = 10000
+        save_interval = 1000
 
 
 class WINGo2Cfg(WINCfg):
@@ -274,7 +274,7 @@ class WINGo2CfgMoECTS(WINCfgMoECTS):
         run_name = 'go2_reward_scales'
         experiment_name = 'win_go2_moe_cts'
         max_iterations = 120000
-        save_interval = 10000
+        save_interval = 1000
 
 
 class WINGo2StairCfg(WINGo2Cfg):
@@ -291,7 +291,7 @@ class WINGo2StairCfgMoECTS(WINGo2CfgMoECTS):
         run_name = 'go2_reward_scales_stair_commands'
         experiment_name = 'win_go2_stair_moe_cts'
         max_iterations = 120000
-        save_interval = 10000
+        save_interval = 1000
 
 
 class WINLowSpeedCfg(WINCfg):
