@@ -96,6 +96,9 @@ class LeggedRobotCfg(BaseConfig):
         zero_command_curriculum = None
         # start training with zero commands and then gradually increase zero command probability
         # eg. {'start_iter': 0, 'end_iter': 1500, 'start_value': 0.0, 'end_value': 0.1}
+        full_stop_command_curriculum = None
+        # like zero_command_curriculum, but clears x/y/yaw commands together.
+        # This is separate so zero-xy in-place turning semantics can be preserved.
         limit_ang_vel_at_zero_command_prob = 0.0 # probability of add limiting angular velocity commands when zero command is sampled
         limit_vel_prob = 0.0 # probability of limiting linear velocity command
         limit_vel_invert_when_continuous = True # invert the limit logic when using continuous sample limit velocity commands
@@ -288,6 +291,8 @@ class LeggedRobotCfg(BaseConfig):
             dof_acc = -2.5e-7
             base_height = -0. 
             feet_air_time = 1.0
+            feet_air_time_variance = -0.
+            feet_contact_without_cmd = 0.
             collision = -1.
             feet_stumble = -0.0 
             action_rate = -0.01
@@ -303,6 +308,7 @@ class LeggedRobotCfg(BaseConfig):
         soft_torque_limit = 1.
         base_height_target = 1.
         max_contact_force = 100. # forces above this value are penalized
+        feet_air_time_variance_max_time = 0.5
         curriculum_rewards = None  # reward names to apply curriculum scaling to, List[dict]
         # eg: [{'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0}]
         dynamic_sigma = None # linear interpolation of sigma based on command velocity, **Must start terrain curriculum first**

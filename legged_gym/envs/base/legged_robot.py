@@ -166,6 +166,7 @@ class LeggedRobot(BaseTask):
         self.base_lin_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel[:] = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity[:] = quat_rotate_inverse(self.base_quat, self.gravity_vec)
+        self._update_feet_contact_timing()
         # `max_move_distance` 记录本 episode 到目前为止离出生点最远走了多远，
         # terrain curriculum 会用它决定该 env 下次该升难度还是降难度。
         self.max_move_distance = self.max_move_distance.maximum(torch.norm(self.root_states[:, :2] - self.env_origins[:, :2], dim=1))
@@ -298,6 +299,13 @@ class LeggedRobot(BaseTask):
         self.last_actions[env_ids] = 0.
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
+        self.feet_current_air_time[env_ids] = 0.
+        self.feet_current_contact_time[env_ids] = 0.
+        self.feet_last_air_time[env_ids] = 0.
+        self.feet_last_contact_time[env_ids] = 0.
+        self.feet_timing_contact[env_ids] = False
+        self.feet_timing_last_contacts[env_ids] = False
+        self.feet_first_contact[env_ids] = False
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = 1
         self.commands_resampling_step[env_ids] = self.cfg.commands.resampling_time / self.dt
@@ -739,6 +747,26 @@ class LeggedRobot(BaseTask):
                             self.stop_heading[add_ang_env_ids] = True
             min_prob += self.zero_command_proba
 
+        # full-stop commands are distinct from zero-xy commands: they clear yaw too.
+        full_stop_command_curriculum = getattr(self.cfg.commands, "full_stop_command_curriculum", None)
+        if full_stop_command_curriculum is not None:
+            self.full_stop_command_proba = self.get_current_scale(full_stop_command_curriculum)
+        if self.full_stop_command_proba > 0.0:
+            max_prob += self.full_stop_command_proba
+            next_resampling_step = torch.clip(
+                self.max_episode_length - self.episode_length_buf[env_ids] - (remaining_dist / (0.8 * self.max_lin_vel * self.dt + 1e-9)),
+                min=0.0,
+                max=self.cfg.commands.resampling_time / self.dt,
+            )
+            full_stop_mask = (rand_prob >= min_prob) * (rand_prob < max_prob) * (next_resampling_step > 0.0)
+            full_stop_env_ids = env_ids[full_stop_mask]
+            if len(full_stop_env_ids) > 0:
+                self.commands[full_stop_env_ids, :3] = 0.0
+                self.commands_resampling_step[full_stop_env_ids] = next_resampling_step[full_stop_mask]
+                if self.cfg.commands.heading_command:
+                    self.stop_heading[full_stop_env_ids] = True
+            min_prob += self.full_stop_command_proba
+
         # turn over zero command time
         if self.cfg.init_state.turn_over and (self.turn_over_timer[env_ids] > 0).any():
             zero_mask = self.turn_over_timer[env_ids] > 0
@@ -1075,9 +1103,17 @@ class LeggedRobot(BaseTask):
         # `commands_xy_accumulation` 不是传感器量，而是训练过程中的 bookkeeping buffer。
         # 它回答的问题更像：“这局理论上被要求走了多少 xy 距离？”
         self.zero_command_proba = 0.0
+        self.full_stop_command_proba = 0.0
         # `feet_air_time` 按脚分别计时，shape = [num_envs, num_feet]。
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)
         self.last_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
+        self.feet_current_air_time = torch.zeros_like(self.feet_air_time)
+        self.feet_current_contact_time = torch.zeros_like(self.feet_air_time)
+        self.feet_last_air_time = torch.zeros_like(self.feet_air_time)
+        self.feet_last_contact_time = torch.zeros_like(self.feet_air_time)
+        self.feet_timing_contact = torch.zeros_like(self.last_contacts)
+        self.feet_timing_last_contacts = torch.zeros_like(self.last_contacts)
+        self.feet_first_contact = torch.zeros_like(self.last_contacts)
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
@@ -1469,7 +1505,8 @@ class LeggedRobot(BaseTask):
             # 如果打开 accumulated_xy_command 模式，
             # “是否该降难度”不再看绝对位移，而看是否完成了累计命令要求的路程。
             # 直观上，它更像“按布置的作业量评分”，而不是只看最终走了多远。
-            move_down = (distance < torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * (self.cfg.commands.resampling_time * (1 - self.zero_command_proba)) * 0.5) * ~move_up
+            stop_command_proba = self.zero_command_proba + self.full_stop_command_proba
+            move_down = (distance < torch.norm(self.commands_xy_accumulation[env_ids], dim=1) * (self.cfg.commands.resampling_time * (1 - stop_command_proba)) * 0.5) * ~move_up
         else:
             # robots that walked less than half of their required distance go to simpler terrains
             move_down = (distance < torch.norm(self.commands[env_ids, :2], dim=1) * self.max_episode_length_s * 0.5) * ~move_up
@@ -1544,6 +1581,37 @@ class LeggedRobot(BaseTask):
 
 
     #------------ reward functions----------------
+    def _update_feet_contact_timing(self):
+        """Track per-foot air/contact durations for gait timing rewards."""
+        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
+        contact_filt = torch.logical_or(contact, self.feet_timing_last_contacts)
+        first_contact = (~self.feet_timing_contact) & contact_filt
+        first_air = self.feet_timing_contact & (~contact_filt)
+        self.feet_first_contact = first_contact
+
+        self.feet_last_air_time = torch.where(
+            first_contact,
+            self.feet_current_air_time,
+            self.feet_last_air_time,
+        )
+        self.feet_last_contact_time = torch.where(
+            first_air,
+            self.feet_current_contact_time,
+            self.feet_last_contact_time,
+        )
+        self.feet_current_air_time = torch.where(
+            contact_filt,
+            torch.zeros_like(self.feet_current_air_time),
+            self.feet_current_air_time + self.dt,
+        )
+        self.feet_current_contact_time = torch.where(
+            contact_filt,
+            self.feet_current_contact_time + self.dt,
+            torch.zeros_like(self.feet_current_contact_time),
+        )
+        self.feet_timing_contact = contact_filt
+        self.feet_timing_last_contacts = contact
+
     def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
         return torch.square(self.base_lin_vel[:, 2])
@@ -1711,6 +1779,22 @@ class LeggedRobot(BaseTask):
         # 一旦重新接触地面，该脚的 air-time 重新清零，开始下一轮计时。
         self.feet_air_time *= ~contact_filt
         return rew_airTime
+
+    def _reward_feet_air_time_variance(self):
+        # Penalize uneven per-foot swing/stance timing, following RobotLab's air-time variance term.
+        max_time = getattr(self.cfg.rewards, "feet_air_time_variance_max_time", 0.5)
+        air_time = torch.clamp(self.feet_last_air_time, max=max_time)
+        contact_time = torch.clamp(self.feet_last_contact_time, max=max_time)
+        variance = torch.var(air_time, dim=1) + torch.var(contact_time, dim=1)
+
+        upright_scale = torch.clamp(-self.projected_gravity[:, 2], 0.0, 0.7) / 0.7
+        return variance * upright_scale
+
+    def _reward_feet_contact_without_cmd(self):
+        # Reward feet making contact events at full-stop commands, following RobotLab's term.
+        stand_still_mask = self._get_stand_still_command_mask()
+        upright_scale = torch.clamp(-self.projected_gravity[:, 2], 0.0, 0.7) / 0.7
+        return torch.sum(self.feet_first_contact.float(), dim=1) * stand_still_mask.float() * upright_scale
     
     def _reward_stumble(self):
         # Penalize feet hitting vertical surfaces
@@ -1729,11 +1813,10 @@ class LeggedRobot(BaseTask):
         return stand_still_mask
 
     def _reward_stand_still(self):
-        # Penalize actual body motion at zero commands, without forcing a pose snap.
+        # Penalize deviation from the default standing pose at full-stop commands.
         stand_still_mask = self._get_stand_still_command_mask()
-        lin_vel_error = torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
-        yaw_vel_error = torch.square(self.base_ang_vel[:, 2])
-        return (lin_vel_error + yaw_vel_error) * stand_still_mask
+        pose_error = torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)
+        return pose_error * stand_still_mask
 
     def _reward_stand_still_default_pose(self):
         # After the robot has mostly settled, softly bias it back to default posture.

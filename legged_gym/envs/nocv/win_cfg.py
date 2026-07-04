@@ -81,13 +81,15 @@ class WINCfg(GO2Cfg):
         # 低高度档位只在 slope / rough_slope / flat 上启用。
         # mesh_type = 'plane'
         # terrain_proportions = [0.15, 0.05, 0.1, 0.3, 0.1, 0.0, 0.1, 0.0, 0.2]
-        terrain_proportions = [0.15, 0.05, 0.1, 0.25, 0.1, 0.2, 0.0, 0.0, 0.15] 
+        terrain_proportions = [0.15, 0.05, 0.1, 0.2, 0.1, 0.2, 0.0, 0.0, 0.2]
         # terrain_proportions = [0, 0, 0, 0, 0, 0, 0.3, 0.1, 0.3]
         # [wave, slope, rough_slope, stairs up, stairs down, obstacles, stones, gap, flat]
         
     class commands(GO2Cfg.commands):
 
         num_commands = 7 # 这是buffer，比command多1维 实际输入-1
+        zero_command_curriculum = {'start_iter': 0, 'end_iter': 1500, 'start_value': 0.0, 'end_value': 0.07}
+        full_stop_command_curriculum = {'start_iter': 0, 'end_iter': 1500, 'start_value': 0.0, 'end_value': 0.03}
 
         body_height_command_idx = 4 # buffer的第5维，索引第4维
         body_height_command_obs_scale = 1.0 # 缩放
@@ -129,7 +131,7 @@ class WINCfg(GO2Cfg):
             'ang_vel_yaw': [-1.5, 1.5], # min max [rad/s]
             'heading': [-1.57, 1.57], # min max [rad]
         },{ # list for command range curriculums at specific training iterations
-            'iter': 50000, # training iteration at which the command ranges are updated
+            'iter': 40000, # training iteration at which the command ranges are updated
             'lin_vel_x': [-2.0, 2.0], # min max [m/s]
             'lin_vel_y': [-1.0, 1.0], # min max [m/s]
             'ang_vel_yaw': [-1.7, 1.7], # min max [rad/s]
@@ -175,7 +177,7 @@ class WINCfg(GO2Cfg):
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.8},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 4.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 3.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
@@ -195,20 +197,23 @@ class WINCfg(GO2Cfg):
             # straight_path = 10.0 # [NOTE] 新增
             # straight_path_deviation = -3 # [NOTE] 新增
             ang_vel_xy = -0.05
-            lateral_yaw_tracking_error = -0.22
+            lateral_yaw_tracking_error = -0.3
             stand_still = -1.0
-            stand_still_default_pose = -0.5
-        
-        
+            stand_still_default_pose = 0.0
+
+            hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
+            dof_vel_limits = -2.5
             dof_pos_limits = -4.0
-            action_rate = -0.006
-            feet_air_time = 0.8
-            action_smoothness = -0.014
-            foot_slip = -0.015
-            low_speed_feet_air_time = 0.8
-            x_command_hip_regular = -0.2
+            action_rate = -0.01
+            feet_air_time = 1.0
+            action_smoothness = -0.01
+            foot_slip = -0.01
+            low_speed_feet_air_time = 0.5
+            feet_air_time_variance = -0.4
+            feet_contact_without_cmd = 0.03
+            x_command_hip_regular = -0.5
             
             
             
@@ -222,7 +227,7 @@ class WINCfgMoECTS(GO2CfgMoECTS):
         run_name = 'new_inertial'
         experiment_name = 'win_moe_cts'
         max_iterations = 120000
-        save_interval = 1000
+        save_interval = 5000
 
 
 class WINGo2Cfg(WINCfg):
@@ -251,7 +256,7 @@ class WINGo2Cfg(WINCfg):
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 4.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 3.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
@@ -262,9 +267,12 @@ class WINGo2Cfg(WINCfg):
         class scales(GO2Cfg.rewards.scales):
             hip_to_default = 0.0
             stand_still = -1
-            stand_still_default_pose = -0.5
-            lateral_yaw_tracking_error = -0.22
+            stand_still_default_pose = 0.0
+            lateral_yaw_tracking_error = -0.3
             hip_to_zero = -0.5
+            feet_air_time = 1.0
+            feet_air_time_variance = -0.4
+            feet_contact_without_cmd = 0.03
 
 
 class WINGo2CfgMoECTS(WINCfgMoECTS):
@@ -274,7 +282,7 @@ class WINGo2CfgMoECTS(WINCfgMoECTS):
         run_name = 'go2_reward_scales'
         experiment_name = 'win_go2_moe_cts'
         max_iterations = 120000
-        save_interval = 1000
+        save_interval = 5000
 
 
 class WINGo2StairCfg(WINGo2Cfg):
@@ -291,7 +299,7 @@ class WINGo2StairCfgMoECTS(WINGo2CfgMoECTS):
         run_name = 'go2_reward_scales_stair_commands'
         experiment_name = 'win_go2_stair_moe_cts'
         max_iterations = 120000
-        save_interval = 1000
+        save_interval = 5000
 
 
 class WINLowSpeedCfg(WINCfg):
@@ -425,6 +433,7 @@ class WINGuardedCfg(WINCfg):
             action_smoothness = -0.05
             foot_slip = -0.03
             low_speed_feet_air_time = 0.5
+            feet_air_time_variance = -0.4
 
 
 class WINGuardedCfgMoECTS(WINCfgMoECTS):

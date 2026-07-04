@@ -28,8 +28,6 @@ class WINRobot(Go2Robot):
             self.low_speed_last_contacts[env_ids] = False
         if hasattr(self, "foot_slip_last_contacts"):
             self.foot_slip_last_contacts[env_ids] = False
-        if hasattr(self, "stand_still_foot_slip_last_contacts"):
-            self.stand_still_foot_slip_last_contacts[env_ids] = False
         
 
 
@@ -685,6 +683,28 @@ class WINRobot(Go2Robot):
                             self.stop_heading[add_ang_env_ids] = True
             min_prob += self.zero_command_proba
 
+        full_stop_command_env_ids = env_ids[:0]
+        full_stop_command_curriculum = getattr(self.cfg.commands, "full_stop_command_curriculum", None)
+        if full_stop_command_curriculum is not None:
+            self.full_stop_command_proba = self.get_current_scale(full_stop_command_curriculum)
+        if self.full_stop_command_proba > 0.0:
+            max_prob += self.full_stop_command_proba
+            next_resampling_step = torch.clip(
+                self.max_episode_length
+                - self.episode_length_buf[env_ids]
+                - (remaining_dist / (0.8 * self.max_lin_vel * self.dt + 1e-9)),
+                min=0.0,
+                max=self.cfg.commands.resampling_time / self.dt,
+            )
+            full_stop_mask = (rand_prob >= min_prob) * (rand_prob < max_prob) * (next_resampling_step > 0.0)
+            full_stop_command_env_ids = env_ids[full_stop_mask]
+            if len(full_stop_command_env_ids) > 0:
+                self.commands[full_stop_command_env_ids, :3] = 0.0
+                self.commands_resampling_step[full_stop_command_env_ids] = next_resampling_step[full_stop_mask]
+                if self.cfg.commands.heading_command:
+                    self.stop_heading[full_stop_command_env_ids] = True
+            min_prob += self.full_stop_command_proba
+
         if self.cfg.init_state.turn_over and (self.turn_over_timer[env_ids] > 0).any():
             zero_mask = self.turn_over_timer[env_ids] > 0
             zero_env_ids = env_ids[zero_mask]
@@ -698,6 +718,13 @@ class WINRobot(Go2Robot):
 
         low_height_env_ids = env_ids[:0]
         low_height_eligible_env_ids = env_ids[self._get_low_height_terrain_mask(env_ids)]
+        if len(full_stop_command_env_ids) > 0:
+            low_height_eligible_env_ids = low_height_eligible_env_ids[
+                ~(
+                    low_height_eligible_env_ids.unsqueeze(1)
+                    == full_stop_command_env_ids.unsqueeze(0)
+                ).any(dim=1)
+            ]
         if len(low_height_eligible_env_ids) > 0:
             if self.low_height_force_normal_after_low:
                 force_normal_mask = self.low_height_force_normal_next[low_height_eligible_env_ids]
@@ -734,12 +761,20 @@ class WINRobot(Go2Robot):
             flat_low_speed_candidate_mask &= ~(
                 env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
             ).any(dim=1)
+        if len(full_stop_command_env_ids) > 0:
+            flat_low_speed_candidate_mask &= ~(
+                env_ids.unsqueeze(1) == full_stop_command_env_ids.unsqueeze(0)
+            ).any(dim=1)
         self._apply_flat_low_speed_command_sampling(env_ids[flat_low_speed_candidate_mask])
 
         monotonic_candidate_mask = torch.ones(len(env_ids), dtype=torch.bool, device=self.device)
         if len(zero_command_env_ids) > 0:
             monotonic_candidate_mask &= ~(
                 env_ids.unsqueeze(1) == zero_command_env_ids.unsqueeze(0)
+            ).any(dim=1)
+        if len(full_stop_command_env_ids) > 0:
+            monotonic_candidate_mask &= ~(
+                env_ids.unsqueeze(1) == full_stop_command_env_ids.unsqueeze(0)
             ).any(dim=1)
         self._apply_monotonic_command_sampling(env_ids[monotonic_candidate_mask])
 
@@ -915,13 +950,6 @@ class WINRobot(Go2Robot):
         触地时如果脚有水平速度则惩罚
         """
         return self._compute_foot_slip("foot_slip_last_contacts")
-
-    def _reward_stand_still(self):
-        stand_still_mask = self._get_stand_still_command_mask()
-        lin_vel_error = torch.sum(torch.square(self.base_lin_vel[:, :2]), dim=1)
-        yaw_vel_error = torch.square(self.base_ang_vel[:, 2])
-        foot_slip_error = self._compute_foot_slip("stand_still_foot_slip_last_contacts")
-        return (lin_vel_error + yaw_vel_error + foot_slip_error) * stand_still_mask
 
     def _reward_low_speed_feet_air_time(self):
         """Encourage clear stepping for low-speed translational commands."""
