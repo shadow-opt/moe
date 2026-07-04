@@ -24,10 +24,11 @@ class WINCfg(GO2Cfg):
         # }
 
     class domain_rand(GO2Cfg.domain_rand):
-        randomize_base_mass = True
-        added_mass_range = [-2, 2]
-        randomize_link_mass = True
-        multiplied_link_mass_range = [0.85, 1.15]
+        pass
+        # randomize_base_mass = True
+        # # added_mass_range = [-2, 2]
+        # randomize_link_mass = True
+        # multiplied_link_mass_range = [0.85, 1.15]
         
 
 
