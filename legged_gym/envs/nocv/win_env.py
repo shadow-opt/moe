@@ -1,4 +1,5 @@
 import torch 
+from isaacgym.torch_utils import quat_rotate_inverse
 
 from legged_gym.envs.go2.go2_env import Go2Robot
 from legged_gym.utils.isaacgym_utils import sample_disjoint_intervals, sample_single_interval
@@ -970,6 +971,208 @@ class WINRobot(Go2Robot):
         rew_air_time = torch.sum((air_time - self.low_speed_feet_air_time_min) * first_contact, dim=1)
         self.low_speed_feet_air_time *= ~contact_filt
         return rew_air_time * low_speed_mask.float()
+
+    def _robotlab_upright_scale(self):
+        return torch.clamp(-self.projected_gravity[:, 2], 0.0, 0.7) / 0.7
+
+    def _robotlab_special_command_mask(self):
+        return (
+            self._get_is_low_height_command_mask()
+            | self._get_is_special_terrain_5_command_mask()
+            | self._get_is_special_terrain_6_command_mask()
+        )
+
+    def _robotlab_commandless_mask(self):
+        return (torch.norm(self.commands[:, :3], dim=1) < 0.1) & (~self._robotlab_special_command_mask())
+
+    def _reward_robotlab_tracking_lin_vel(self):
+        lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
+        return torch.exp(-lin_vel_error / self.cfg.rewards.tracking_sigma) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_tracking_ang_vel(self):
+        ang_vel_error = torch.square(self.commands[:, 2] - self.base_ang_vel[:, 2])
+        return torch.exp(-ang_vel_error / self.cfg.rewards.tracking_sigma) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_lin_vel_z(self):
+        return torch.square(self.base_lin_vel[:, 2]) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_ang_vel_xy(self):
+        return torch.sum(torch.square(self.base_ang_vel[:, :2]), dim=1) * self._robotlab_upright_scale()
+
+    def _get_robotlab_non_foot_indices(self):
+        if not hasattr(self, "robotlab_non_foot_indices"):
+            all_indices = torch.arange(self.num_bodies, dtype=torch.long, device=self.device)
+            is_foot = (all_indices.unsqueeze(1) == self.feet_indices.unsqueeze(0)).any(dim=1)
+            self.robotlab_non_foot_indices = all_indices[~is_foot]
+        return self.robotlab_non_foot_indices
+
+    def _reward_robotlab_collision(self):
+        contacts = torch.norm(self.contact_forces[:, self._get_robotlab_non_foot_indices(), :], dim=-1) > 1.0
+        return torch.sum(contacts.float(), dim=1) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_stand_still(self):
+        pose_error = torch.sum(torch.abs(self.dof_pos - self.default_dof_pos), dim=1)
+        return pose_error * self._robotlab_commandless_mask().float() * self._robotlab_upright_scale()
+
+    def _reward_robotlab_joint_pos_penalty(self):
+        command_threshold = getattr(self.cfg.rewards, "robotlab_command_threshold", 0.1)
+        velocity_threshold = getattr(self.cfg.rewards, "robotlab_velocity_threshold", 0.5)
+        stand_still_scale = getattr(self.cfg.rewards, "robotlab_stand_still_scale", 5.0)
+
+        cmd_norm = torch.norm(self.commands[:, :3], dim=1)
+        body_vel = torch.norm(self.base_lin_vel[:, :2], dim=1)
+        pose_error = torch.norm(self.dof_pos - self.default_dof_pos, dim=1)
+        moving_mask = (
+            (cmd_norm > command_threshold)
+            | (body_vel > velocity_threshold)
+            | self._robotlab_special_command_mask()
+        )
+        reward = torch.where(moving_mask, pose_error, stand_still_scale * pose_error)
+        return reward * self._robotlab_upright_scale()
+
+    def _get_robotlab_joint_mirror_pairs(self):
+        if not hasattr(self, "robotlab_joint_mirror_pairs"):
+            name_to_idx = {name: idx for idx, name in enumerate(self.dof_names)}
+            pair_specs = (
+                ("FR", "RL", ("hip", "thigh", "calf")),
+                ("FL", "RR", ("hip", "thigh", "calf")),
+            )
+            pairs = []
+            for left_leg, right_leg, joint_parts in pair_specs:
+                left_ids = []
+                right_ids = []
+                for part in joint_parts:
+                    left_name = f"{left_leg}_{part}_joint"
+                    right_name = f"{right_leg}_{part}_joint"
+                    if left_name in name_to_idx and right_name in name_to_idx:
+                        left_ids.append(name_to_idx[left_name])
+                        right_ids.append(name_to_idx[right_name])
+                if left_ids:
+                    pairs.append((
+                        torch.tensor(left_ids, dtype=torch.long, device=self.device),
+                        torch.tensor(right_ids, dtype=torch.long, device=self.device),
+                    ))
+            if not pairs:
+                raise RuntimeError(f"Could not build robotlab joint mirror pairs from dof names: {self.dof_names}")
+            self.robotlab_joint_mirror_pairs = pairs
+        return self.robotlab_joint_mirror_pairs
+
+    def _reward_robotlab_joint_mirror(self):
+        reward = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        pairs = self._get_robotlab_joint_mirror_pairs()
+        for left_ids, right_ids in pairs:
+            reward += torch.sum(torch.square(self.dof_pos[:, left_ids] - self.dof_pos[:, right_ids]), dim=1)
+        reward *= 1.0 / len(pairs)
+        return reward * self._robotlab_upright_scale()
+
+    def _reward_robotlab_contact_forces(self):
+        contact_force = torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1)
+        reward = torch.sum((contact_force - self.cfg.rewards.max_contact_force).clip(min=0.0), dim=1)
+        return reward * self._robotlab_upright_scale()
+
+    def _reward_robotlab_feet_air_time(self):
+        threshold = getattr(self.cfg.rewards, "robotlab_feet_air_time_threshold", 0.5)
+        reward = torch.sum((self.feet_last_air_time - threshold) * self.feet_first_contact.float(), dim=1)
+        reward *= (torch.norm(self.commands[:, :3], dim=1) > 0.1).float()
+        return reward * self._robotlab_upright_scale()
+
+    def _reward_robotlab_feet_contact_without_cmd(self):
+        reward = torch.sum(self.feet_first_contact.float(), dim=1)
+        reward *= (torch.norm(self.commands[:, :3], dim=1) < 0.1).float()
+        return reward * self._robotlab_upright_scale()
+
+    def _reward_robotlab_feet_slide(self):
+        contacts = self.feet_timing_contact
+        body_states = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)
+        feet_vel = body_states[:, self.feet_indices, 7:10]
+        root_vel = self.root_states[:, 7:10].unsqueeze(1)
+        rel_feet_vel = (feet_vel - root_vel).reshape(-1, 3)
+        base_quat = self.base_quat.repeat_interleave(len(self.feet_indices), dim=0)
+        feet_vel_body = quat_rotate_inverse(base_quat, rel_feet_vel).view(self.num_envs, len(self.feet_indices), 3)
+        lateral_vel = torch.norm(feet_vel_body[:, :, :2], dim=2)
+        return torch.sum(lateral_vel * contacts.float(), dim=1) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_feet_height_body(self):
+        body_states = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)
+        feet_pos = body_states[:, self.feet_indices, 0:3]
+        feet_vel = body_states[:, self.feet_indices, 7:10]
+        root_pos = self.root_states[:, 0:3].unsqueeze(1)
+        root_vel = self.root_states[:, 7:10].unsqueeze(1)
+        num_feet = len(self.feet_indices)
+
+        base_quat = self.base_quat.repeat_interleave(num_feet, dim=0)
+        feet_pos_body = quat_rotate_inverse(
+            base_quat,
+            (feet_pos - root_pos).reshape(-1, 3),
+        ).view(self.num_envs, num_feet, 3)
+        feet_vel_body = quat_rotate_inverse(
+            base_quat,
+            (feet_vel - root_vel).reshape(-1, 3),
+        ).view(self.num_envs, num_feet, 3)
+
+        target_height = getattr(self.cfg.rewards, "robotlab_feet_height_body_target", -0.2)
+        tanh_mult = getattr(self.cfg.rewards, "robotlab_feet_height_tanh_mult", 2.0)
+        foot_z_error = torch.square(feet_pos_body[:, :, 2] - target_height)
+        foot_velocity_gate = torch.tanh(tanh_mult * torch.norm(feet_vel_body[:, :, :2], dim=2))
+        reward = torch.sum(foot_z_error * foot_velocity_gate, dim=1)
+        reward *= (torch.norm(self.commands[:, :3], dim=1) > 0.1).float()
+        return reward * self._robotlab_upright_scale()
+
+    def _robotlab_gait_sync_reward(self, foot_a, foot_b, max_err, std):
+        air_time = self.feet_current_air_time
+        contact_time = self.feet_current_contact_time
+        se_air = torch.clip(torch.square(air_time[:, foot_a] - air_time[:, foot_b]), max=max_err ** 2)
+        se_contact = torch.clip(torch.square(contact_time[:, foot_a] - contact_time[:, foot_b]), max=max_err ** 2)
+        return torch.exp(-(se_air + se_contact) / std)
+
+    def _robotlab_gait_async_reward(self, foot_a, foot_b, max_err, std):
+        air_time = self.feet_current_air_time
+        contact_time = self.feet_current_contact_time
+        se_air_contact = torch.clip(torch.square(air_time[:, foot_a] - contact_time[:, foot_b]), max=max_err ** 2)
+        se_contact_air = torch.clip(torch.square(contact_time[:, foot_a] - air_time[:, foot_b]), max=max_err ** 2)
+        return torch.exp(-(se_air_contact + se_contact_air) / std)
+
+    def _get_robotlab_gait_feet(self):
+        if not hasattr(self, "robotlab_gait_feet"):
+            foot_name_to_local_idx = {}
+            for local_idx, body_idx in enumerate(self.feet_indices.tolist()):
+                body_name = self.body_names[int(body_idx)]
+                foot_name_to_local_idx[body_name] = local_idx
+
+            required = ("FL_foot", "RR_foot", "FR_foot", "RL_foot")
+            missing = [name for name in required if name not in foot_name_to_local_idx]
+            if missing:
+                raise RuntimeError(
+                    f"Could not build RobotLab gait foot pairs, missing {missing} from feet "
+                    f"{list(foot_name_to_local_idx.keys())}"
+                )
+            self.robotlab_gait_feet = tuple(foot_name_to_local_idx[name] for name in required)
+        return self.robotlab_gait_feet
+
+    def _reward_robotlab_feet_gait(self):
+        fl, rr, fr, rl = self._get_robotlab_gait_feet()
+        std = getattr(self.cfg.rewards, "robotlab_gait_std", 0.5 ** 0.5)
+        max_err = getattr(self.cfg.rewards, "robotlab_gait_max_err", 0.2)
+        command_threshold = getattr(self.cfg.rewards, "robotlab_command_threshold", 0.1)
+        velocity_threshold = getattr(self.cfg.rewards, "robotlab_velocity_threshold", 0.5)
+
+        sync_reward = (
+            self._robotlab_gait_sync_reward(fl, rr, max_err, std)
+            * self._robotlab_gait_sync_reward(fr, rl, max_err, std)
+        )
+        async_reward = (
+            self._robotlab_gait_async_reward(fl, fr, max_err, std)
+            * self._robotlab_gait_async_reward(rr, rl, max_err, std)
+            * self._robotlab_gait_async_reward(fl, rl, max_err, std)
+            * self._robotlab_gait_async_reward(rr, fr, max_err, std)
+        )
+        cmd_norm = torch.norm(self.commands[:, :3], dim=1)
+        body_vel = torch.norm(self.base_lin_vel[:, :2], dim=1)
+        moving_mask = (cmd_norm > command_threshold) | (body_vel > velocity_threshold)
+        return torch.where(moving_mask, sync_reward * async_reward, torch.zeros_like(sync_reward)) * self._robotlab_upright_scale()
+
+    def _reward_robotlab_upward(self):
+        return torch.square(1.0 - self.projected_gravity[:, 2])
 
     def _reward_low_foot(self):
         """在 special_terrain_6 命令激活时，按悬空脚下探深度惩罚。"""

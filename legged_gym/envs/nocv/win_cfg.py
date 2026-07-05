@@ -232,6 +232,66 @@ class WINCfgMoECTS(GO2CfgMoECTS):
         save_interval = 5000
 
 
+class WINRobotLabCfg(WINCfg):
+    """WIN baseline with RobotLab Unitree Go2 rough reward terms.
+
+    The environment, command sampling, terrain distribution, asset, control, and
+    low-height command behavior stay inherited from WINCfg.  Only reward terms
+    are switched to RobotLab-style names/weights, with WIN's command-aware
+    base-height reward kept so the low-height command remains supervised.
+    """
+
+    class rewards(WINCfg.rewards):
+        max_contact_force = 100.0
+        curriculum_rewards = None
+
+        robotlab_command_threshold = 0.1
+        robotlab_velocity_threshold = 0.5
+        robotlab_stand_still_scale = 5.0
+        robotlab_feet_air_time_threshold = 0.5
+        robotlab_feet_height_body_target = -0.2
+        robotlab_feet_height_tanh_mult = 2.0
+        robotlab_gait_std = 0.5 ** 0.5
+        robotlab_gait_max_err = 0.2
+
+        class scales:
+            # RobotLab UnitreeGo2RoughEnvCfg reward mapping.
+            robotlab_lin_vel_z = -2.0
+            robotlab_ang_vel_xy = -0.05
+            torques = -2.5e-5
+            dof_acc = -2.5e-7
+            dof_pos_limits = -5.0
+            dof_power = -2e-5
+            robotlab_stand_still = -2.0
+            robotlab_joint_pos_penalty = -1.0
+            robotlab_joint_mirror = -0.05
+            action_rate = -0.01
+            robotlab_collision = -1.0
+            robotlab_contact_forces = -1.5e-4
+            robotlab_tracking_lin_vel = 3.0
+            robotlab_tracking_ang_vel = 1.5
+            robotlab_feet_air_time = 0.1
+            feet_air_time_variance = -1.0
+            robotlab_feet_contact_without_cmd = 0.1
+            robotlab_feet_slide = -0.1
+            robotlab_feet_height_body = -5.0
+            robotlab_feet_gait = 0.5
+            robotlab_upward = 1.0
+
+            # WIN-specific low-height command supervision retained by request.
+            correct_base_height = -1.0
+
+
+class WINRobotLabCfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for the RobotLab-reward WIN variant."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'robotlab_go2_rewards'
+        experiment_name = 'win_robotlab_moe_cts'
+        max_iterations = 120000
+        save_interval = 5000
+
+
 class WINGo2Cfg(WINCfg):
     """WIN environment with GO2 reward scales plus selected low-height guards."""
     class commands(WINCfg.commands):
