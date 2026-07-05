@@ -201,18 +201,19 @@ class WINCfg(GO2Cfg):
             lateral_yaw_tracking_error = -0.3
             stand_still = -1.0
             stand_still_default_pose = 0.0
-
+            tracking_lin_vel = 1.6
+            tracking_ang_vel = 0.8
             hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
-            dof_vel_limits = -2.5
+            dof_vel_limits = -2.0
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
             action_smoothness = -0.01
             foot_slip = -0.01
             low_speed_feet_air_time = 0.5
-            feet_air_time_variance = -0.4
+            feet_air_time_variance = -0.25
             feet_contact_without_cmd = 0.03
             x_command_hip_regular = -0.5
             
@@ -272,7 +273,9 @@ class WINGo2Cfg(WINCfg):
             lateral_yaw_tracking_error = -0.3
             hip_to_zero = -0.5
             feet_air_time = 1.0
-            feet_air_time_variance = -0.4
+            tracking_lin_vel = 1.6
+            tracking_ang_vel = 0.8
+            feet_air_time_variance = -0.25
             feet_contact_without_cmd = 0.03
 
 
