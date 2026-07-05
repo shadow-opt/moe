@@ -1028,7 +1028,9 @@ class WINRobot(Go2Robot):
             | self._robotlab_special_command_mask()
         )
         reward = torch.where(moving_mask, pose_error, stand_still_scale * pose_error)
-        return reward * self._robotlab_upright_scale()
+        if getattr(self.cfg.rewards, "robotlab_joint_pos_penalty_upright_scale", True):
+            reward *= self._robotlab_upright_scale()
+        return reward
 
     def _get_robotlab_joint_mirror_pairs(self):
         if not hasattr(self, "robotlab_joint_mirror_pairs"):
@@ -1090,7 +1092,10 @@ class WINRobot(Go2Robot):
         base_quat = self.base_quat.repeat_interleave(len(self.feet_indices), dim=0)
         feet_vel_body = quat_rotate_inverse(base_quat, rel_feet_vel).view(self.num_envs, len(self.feet_indices), 3)
         lateral_vel = torch.norm(feet_vel_body[:, :, :2], dim=2)
-        return torch.sum(lateral_vel * contacts.float(), dim=1) * self._robotlab_upright_scale()
+        reward = torch.sum(lateral_vel * contacts.float(), dim=1)
+        if getattr(self.cfg.rewards, "robotlab_feet_slide_upright_scale", True):
+            reward *= self._robotlab_upright_scale()
+        return reward
 
     def _reward_robotlab_feet_height_body(self):
         body_states = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)

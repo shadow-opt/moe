@@ -282,6 +282,7 @@ class WINRobotLabCfg(WINCfg):
             hip_to_zero = -5.0
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -3.0
+            dof_vel_limits = -0.01
 
 
 class WINRobotLabCfgMoECTS(WINCfgMoECTS):
@@ -290,6 +291,90 @@ class WINRobotLabCfgMoECTS(WINCfgMoECTS):
     class runner(WINCfgMoECTS.runner):
         run_name = 'robotlab_go2_rewards'
         experiment_name = 'win_robotlab_moe_cts'
+        max_iterations = 120000
+        save_interval = 5000
+
+
+class WINLegbotCfg(WINCfg):
+    """WIN variant with reward weights mapped from legbot_lab's VBot MoE CTS cfg.
+
+    Commands, terrain distribution, asset, control, observations, and the
+    low-height command machinery stay inherited from WINCfg.  The terrain-wise
+    command caps use the local GO2 table, which matches legbot's flat limits
+    while retaining per-terrain safety caps for this environment.
+    """
+    class init_state(WINCfg.init_state):
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0.0,   # [rad]
+            'RL_hip_joint': 0.0,   # [rad]
+            'FR_hip_joint': 0.0 ,  # [rad]
+            'RR_hip_joint': 0.0,   # [rad]
+
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.,   # [rad]
+
+            'FL_calf_joint': -1.5,   # [rad]
+            'RL_calf_joint': -1.5,    # [rad]
+            'FR_calf_joint': -1.5,  # [rad]
+            'RR_calf_joint': -1.5,    # [rad]
+        }    
+        
+    class commands(WINCfg.commands):
+        terrain_max_command_ranges = GO2Cfg.commands.terrain_max_command_ranges
+
+    class rewards(WINCfg.rewards):
+        curriculum_rewards = None
+        dynamic_sigma = None
+
+        feet_air_time_threshold = 0.5
+        feet_air_time_command_dims = 3
+        feet_air_time_variance_upright_scale = False
+        collision_contact_threshold = 1.0
+
+        robotlab_command_threshold = 0.0
+        robotlab_velocity_threshold = 0.3
+        robotlab_stand_still_scale = 5.0
+        robotlab_joint_pos_penalty_upright_scale = False
+        robotlab_feet_slide_upright_scale = False
+        robotlab_feet_height_body_target = 0.12
+        robotlab_feet_height_tanh_mult = 3.0
+
+        class scales:
+            # legbot_lab vbot/velocity_env_moe_cts_cfg.py RewardsCfg mapping.
+            tracking_lin_vel = 1.0
+            tracking_ang_vel = 0.5
+            lin_vel_z = -2.0
+            ang_vel_xy = -0.05
+            dof_vel = -0.001
+            dof_acc = -2.5e-7
+            torques = -2.5e-5
+            action_rate = -0.01
+            dof_pos_limits = -2.0
+            dof_power = -2e-5
+            robotlab_joint_pos_penalty = -0.05
+            feet_air_time = 1.0
+            feet_air_time_variance = -1.0
+            robotlab_feet_slide = -0.1
+            collision = -1.0
+            stumble = -0.5
+            robotlab_feet_height_body = -0.5
+            hip_to_default = -0.05
+            feet_regulation = -0.05
+            action_smoothness = -0.01
+
+            # WIN-specific low-height command supervision retained by design.
+            correct_base_height = -3.0
+            dof_vel_limits = -0.01
+
+
+class WINLegbotCfgMoECTS(WINCfgMoECTS):
+    """MoE CTS runner config for the legbot reward WIN variant."""
+
+    class runner(WINCfgMoECTS.runner):
+        run_name = 'legbot_rewards'
+        experiment_name = 'win_legbot'
         max_iterations = 120000
         save_interval = 5000
 

@@ -1680,7 +1680,11 @@ class LeggedRobot(BaseTask):
     
     def _reward_collision(self):
         # Penalize collisions on selected bodies
-        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        threshold = getattr(self.cfg.rewards, "collision_contact_threshold", 0.1)
+        return torch.sum(
+            1. * (torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > threshold),
+            dim=1,
+        )
     
     def _reward_termination(self):
         # Terminal reward / penalty
@@ -1774,9 +1778,12 @@ class LeggedRobot(BaseTask):
         first_contact = (self.feet_air_time > 0.) * contact_filt
         self.feet_air_time += self.dt
         # 脚在空中时间越久，落地时奖励越高，鼓励更明确的摆腿动作。
-        air_time = torch.clamp(self.feet_air_time, max=0.9)
-        rew_airTime = torch.sum((air_time - 0.3) * first_contact, dim=1) # reward only on first contact with the ground
-        rew_airTime *= torch.norm(self.commands[:, :2], dim=1) > 0.1 #no reward for zero command
+        max_air_time = getattr(self.cfg.rewards, "feet_air_time_max_time", 0.9)
+        threshold = getattr(self.cfg.rewards, "feet_air_time_threshold", 0.3)
+        command_dims = getattr(self.cfg.rewards, "feet_air_time_command_dims", 2)
+        air_time = torch.clamp(self.feet_air_time, max=max_air_time)
+        rew_airTime = torch.sum((air_time - threshold) * first_contact, dim=1) # reward only on first contact with the ground
+        rew_airTime *= torch.norm(self.commands[:, :command_dims], dim=1) > 0.1 #no reward for zero command
         # 一旦重新接触地面，该脚的 air-time 重新清零，开始下一轮计时。
         self.feet_air_time *= ~contact_filt
         return rew_airTime
@@ -1788,6 +1795,8 @@ class LeggedRobot(BaseTask):
         contact_time = torch.clamp(self.feet_last_contact_time, max=max_time)
         variance = torch.var(air_time, dim=1) + torch.var(contact_time, dim=1)
 
+        if not getattr(self.cfg.rewards, "feet_air_time_variance_upright_scale", True):
+            return variance
         upright_scale = torch.clamp(-self.projected_gravity[:, 2], 0.0, 0.7) / 0.7
         return variance * upright_scale
 

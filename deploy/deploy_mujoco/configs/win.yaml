@@ -37,6 +37,8 @@ kds: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 # XML qpos order is FL, RL, FR, RR. Values match the exported WIN training config.
 default_angles: [0.1,  0.8, -1.5,   0.1, 1.0, -1.5,
                  -0.1, 0.8, -1.5,  -0.1, 1.0, -1.5]
+#default_angles: [0.0, 0.8, -1.5, 0.0, 1.0, -1.5,
+#                0.0, 0.8, -1.5, 0.0, 1.0, -1.5]
 
 # Match IsaacGym training reset state instead of MuJoCo XML zero-joint defaults.
 init_base_pos: [0.0, 0.0, 0.42]
