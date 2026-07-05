@@ -165,7 +165,7 @@ class WINCfg(GO2Cfg):
         low_base_height_target = 0.18
         base_height_target = 0.37
         soft_dof_pos_limit = 0.8
-        soft_dof_vel_limit = 0.85
+        soft_dof_vel_limit = 0.9
         soft_torque_limit = 0.75
         foot_slip_deadzone = 0.02
         foot_slip_excluded_terrain_ids = [3, 4]
@@ -201,12 +201,12 @@ class WINCfg(GO2Cfg):
             lateral_yaw_tracking_error = -0.3
             stand_still = -1.0
             stand_still_default_pose = 0.0
-            tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.75
+            tracking_lin_vel = 1.1
+            tracking_ang_vel = 0.55
             # hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
-            dof_vel_limits = -2.0
+            dof_vel_limits = -0.01
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
@@ -333,8 +333,8 @@ class WINGo2Cfg(WINCfg):
             lateral_yaw_tracking_error = -0.3
             hip_to_zero = -0.5
             feet_air_time = 1.0
-            tracking_lin_vel = 1.5
-            tracking_ang_vel = 0.75
+            tracking_lin_vel = 1.1
+            tracking_ang_vel = 0.55
             feet_air_time_variance = -0.3
             feet_contact_without_cmd = 0.03
 
