@@ -1116,6 +1116,7 @@ class WINRobot(Go2Robot):
         foot_velocity_gate = torch.tanh(tanh_mult * torch.norm(feet_vel_body[:, :, :2], dim=2))
         reward = torch.sum(foot_z_error * foot_velocity_gate, dim=1)
         reward *= (torch.norm(self.commands[:, :3], dim=1) > 0.1).float()
+        reward *= (~self._get_is_low_height_command_mask()).float()
         return reward * self._robotlab_upright_scale()
 
     def _robotlab_gait_sync_reward(self, foot_a, foot_b, max_err, std):

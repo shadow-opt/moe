@@ -240,7 +240,9 @@ class WINRobotLabCfg(WINCfg):
     are switched to RobotLab-style names/weights, with WIN's command-aware
     base-height reward kept so the low-height command remains supervised.
     """
-
+    class terrain(WINCfg.terrain):
+        terrain_max_command_ranges = GO2Cfg.commands.terrain_max_command_ranges
+        
     class rewards(WINCfg.rewards):
         max_contact_force = 100.0
         curriculum_rewards = None
@@ -274,12 +276,12 @@ class WINRobotLabCfg(WINCfg):
             feet_air_time_variance = -1.0
             robotlab_feet_contact_without_cmd = 0.1
             robotlab_feet_slide = -0.1
-            robotlab_feet_height_body = -5.0
+            robotlab_feet_height_body = -1.0
             robotlab_feet_gait = 0.5
             robotlab_upward = 1.0
-
+            hip_to_zero = -5.0
             # WIN-specific low-height command supervision retained by request.
-            correct_base_height = -1.0
+            correct_base_height = -3.0
 
 
 class WINRobotLabCfgMoECTS(WINCfgMoECTS):
