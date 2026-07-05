@@ -178,7 +178,7 @@ class WINCfg(GO2Cfg):
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.8},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 3.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 4.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
@@ -201,8 +201,8 @@ class WINCfg(GO2Cfg):
             lateral_yaw_tracking_error = -0.3
             stand_still = -1.0
             stand_still_default_pose = 0.0
-            tracking_lin_vel = 1.6
-            tracking_ang_vel = 0.8
+            tracking_lin_vel = 1.5
+            tracking_ang_vel = 0.75
             hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
@@ -213,7 +213,7 @@ class WINCfg(GO2Cfg):
             action_smoothness = -0.01
             foot_slip = -0.01
             low_speed_feet_air_time = 0.5
-            feet_air_time_variance = -0.25
+            feet_air_time_variance = -0.3
             feet_contact_without_cmd = 0.03
             x_command_hip_regular = -0.5
             
@@ -258,7 +258,7 @@ class WINGo2Cfg(WINCfg):
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
-            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 3.0},
+            {'reward_name': 'stand_still', 'start_iter': 10000, 'end_iter': 40000, 'start_value': 1.0, 'end_value': 4.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 20000, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 0.4},
             {'reward_name': 'lateral_yaw_tracking_error', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'hip_to_zero', 'start_iter': 0, 'end_iter': 70000, 'start_value': 1.0, 'end_value': 20.0},
@@ -273,9 +273,9 @@ class WINGo2Cfg(WINCfg):
             lateral_yaw_tracking_error = -0.3
             hip_to_zero = -0.5
             feet_air_time = 1.0
-            tracking_lin_vel = 1.6
-            tracking_ang_vel = 0.8
-            feet_air_time_variance = -0.25
+            tracking_lin_vel = 1.5
+            tracking_ang_vel = 0.75
+            feet_air_time_variance = -0.3
             feet_contact_without_cmd = 0.03
 
 
