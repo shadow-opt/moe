@@ -203,7 +203,7 @@ class WINCfg(GO2Cfg):
             stand_still_default_pose = 0.0
             tracking_lin_vel = 1.5
             tracking_ang_vel = 0.75
-            hip_to_default = 0.0
+            # hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
             dof_vel_limits = -2.0
@@ -267,7 +267,7 @@ class WINGo2Cfg(WINCfg):
         ]
         
         class scales(GO2Cfg.rewards.scales):
-            hip_to_default = 0.0
+            # hip_to_default = 0.0
             stand_still = -1
             stand_still_default_pose = 0.0
             lateral_yaw_tracking_error = -0.3
