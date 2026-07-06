@@ -3,26 +3,26 @@ from legged_gym.envs.go2.go2_config import GO2CfgMoECTS
 from legged_gym.envs.go2.go2_config import GO2CfgCTS
 
 class WINCfg(GO2Cfg):
+          
     class init_state(GO2Cfg.init_state):
         turn_over = False
         turn_over_proportions = [0.0, 0.0, 0.0] # proportions for backflip, sideflip, noflip
-        # default_joint_angles = { # = target angles [rad] when action = 0.0
-        #     'FL_hip_joint': 0.1,   # [rad]
-        #     'RL_hip_joint': 0.1,   # [rad]
-        #     'FR_hip_joint': -0.1,  # [rad]
-        #     'RR_hip_joint': -0.1,   # [rad]
+        default_joint_angles = { # = target angles [rad] when action = 0.0
+            'FL_hip_joint': 0.0,   # [rad]
+            'RL_hip_joint': 0.0,   # [rad]
+            'FR_hip_joint': 0.0 ,  # [rad]
+            'RR_hip_joint': 0.0,   # [rad]
 
-        #     'FL_thigh_joint': 0.8,     # [rad]
-        #     'RL_thigh_joint': 1.0,   # [rad]
-        #     'FR_thigh_joint': 0.8,     # [rad]
-        #     'RR_thigh_joint': 1.0,   # [rad]
+            'FL_thigh_joint': 0.8,     # [rad]
+            'RL_thigh_joint': 1.,   # [rad]
+            'FR_thigh_joint': 0.8,     # [rad]
+            'RR_thigh_joint': 1.,   # [rad]
 
-        #     'FL_calf_joint': -1.4,   # [rad]
-        #     'RL_calf_joint': -1.4,    # [rad]
-        #     'FR_calf_joint': -1.4,  # [rad]
-        #     'RR_calf_joint': -1.4,    # [rad]
-        # }
-
+            'FL_calf_joint': -1.5,   # [rad]
+            'RL_calf_joint': -1.5,    # [rad]
+            'FR_calf_joint': -1.5,  # [rad]
+            'RR_calf_joint': -1.5,    # [rad]
+        }
     class domain_rand(GO2Cfg.domain_rand):
         pass
         # randomize_base_mass = True
