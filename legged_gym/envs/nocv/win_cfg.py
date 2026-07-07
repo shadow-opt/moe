@@ -150,7 +150,7 @@ class WINCfg(GO2Cfg):
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # wave
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0.0, 0.0]},  # stairs up
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs up
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
@@ -174,7 +174,6 @@ class WINCfg(GO2Cfg):
         stand_still_default_pose_settle_sigma = 0.04
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
-            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.8},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
@@ -210,12 +209,13 @@ class WINCfg(GO2Cfg):
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
-            action_smoothness = -0.02
+            action_smoothness = -0.012
             foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             feet_air_time_variance = -0.3
             feet_contact_without_cmd = 0.03
             x_command_hip_regular = -0.5
+            low_height_correct_base_height = -20.0
             
             
             
@@ -281,7 +281,8 @@ class WINRobotLabCfg(WINCfg):
             robotlab_upward = 1.0
             hip_to_zero = -5.0
             # WIN-specific low-height command supervision retained by request.
-            correct_base_height = -3.0
+            correct_base_height = -1.0
+            low_height_correct_base_height = -20.0
             dof_vel_limits = -0.03
 
 
@@ -304,23 +305,23 @@ class WINLegbotCfg(WINCfg):
     while retaining per-terrain safety caps for this environment.
     """
     class init_state(WINCfg.init_state):
-        default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.0,   # [rad]
-            'RL_hip_joint': 0.0,   # [rad]
-            'FR_hip_joint': 0.0 ,  # [rad]
-            'RR_hip_joint': 0.0,   # [rad]
+        # default_joint_angles = { # = target angles [rad] when action = 0.0
+        #     'FL_hip_joint': 0.0,   # [rad]
+        #     'RL_hip_joint': 0.0,   # [rad]
+        #     'FR_hip_joint': 0.0 ,  # [rad]
+        #     'RR_hip_joint': 0.0,   # [rad]
 
-            'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 1.,   # [rad]
-            'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 1.,   # [rad]
+        #     'FL_thigh_joint': 0.8,     # [rad]
+        #     'RL_thigh_joint': 1.,   # [rad]
+        #     'FR_thigh_joint': 0.8,     # [rad]
+        #     'RR_thigh_joint': 1.,   # [rad]
 
-            'FL_calf_joint': -1.5,   # [rad]
-            'RL_calf_joint': -1.5,    # [rad]
-            'FR_calf_joint': -1.5,  # [rad]
-            'RR_calf_joint': -1.5,    # [rad]
-        }    
-
+        #     'FL_calf_joint': -1.5,   # [rad]
+        #     'RL_calf_joint': -1.5,    # [rad]
+        #     'FR_calf_joint': -1.5,  # [rad]
+        #     'RR_calf_joint': -1.5,    # [rad]
+        # }    
+        pass
     class asset(WINCfg.asset):
         penalize_contacts_on = ["thigh", "calf"]
         
@@ -333,7 +334,6 @@ class WINLegbotCfg(WINCfg):
         base_height_target = WINCfg.rewards.base_height_target
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
-            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
         ]
         dynamic_sigma = None
 
@@ -353,7 +353,7 @@ class WINLegbotCfg(WINCfg):
             dof_power = -2e-5
             torques = -1e-4
             action_rate = -0.01
-            action_smoothness = -0.02
+            action_smoothness = -0.012
             collision = -1.0
             dof_pos_limits = -2.0
             feet_regulation = -0.05
@@ -397,7 +397,6 @@ class WINGo2Cfg(WINCfg):
         ] """
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
-            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 5.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 10000, 'end_iter': 30000, 'start_value': 1.0, 'end_value': 1.5},
             # {'reward_name': 'foot_slip', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 2.0},
             # {'reward_name': 'x_command_hip_regular', 'start_iter': 30000, 'end_iter': 60000, 'start_value': 1.0, 'end_value': 10.0},
@@ -486,7 +485,6 @@ class WINLowSpeedCfg(WINCfg):
         soft_dof_pos_limit = 0.8
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 500, 'start_value': 1.0, 'end_value': 0.0},
-            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 2000, 'start_value': 1.0, 'end_value': 8.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 3000, 'end_iter': 10000, 'start_value': 1.0, 'end_value': 2.0},
             {'reward_name': 'stand_still', 'start_iter': 3000, 'end_iter': 12000, 'start_value': 1.0, 'end_value': 4.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 4000, 'end_iter': 16000, 'start_value': 1.0, 'end_value': 0.4},
@@ -565,7 +563,6 @@ class WINGuardedCfg(WINCfg):
         soft_dof_pos_limit = 0.8
         curriculum_rewards = [
             {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
-            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
             {'reward_name': 'ang_vel_xy', 'start_iter': 5000, 'end_iter': 15000, 'start_value': 1.0, 'end_value': 2.0},
             {'reward_name': 'stand_still', 'start_iter': 5000, 'end_iter': 20000, 'start_value': 1.0, 'end_value': 4.0},
             # {'reward_name': 'hip_to_default', 'start_iter': 10000, 'end_iter': 35000, 'start_value': 1.0, 'end_value': 0.4},

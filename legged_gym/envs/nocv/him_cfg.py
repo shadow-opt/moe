@@ -151,9 +151,6 @@ class HIMCfg(WINVanillaCTS):
         # 早期强约束身体不要乱跳，后期放开，让策略自己找步态。
         {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 600, 'start_value': 1.0, 'end_value': 0.2},
 
-        # him 有低高度 command，base height 目标很重要；训练中后期逐渐加重。
-        {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 1200, 'start_value': 1.0, 'end_value': 4.0},
-
         # roll/pitch 稳定性不要一开始太狠，否则会压制低身高动作；后期再收紧。
         {'reward_name': 'ang_vel_xy', 'start_iter': 300, 'end_iter': 1600, 'start_value': 1.0, 'end_value': 3.0},
 
