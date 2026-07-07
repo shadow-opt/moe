@@ -7,22 +7,22 @@ class WINCfg(GO2Cfg):
     class init_state(GO2Cfg.init_state):
         turn_over = False
         turn_over_proportions = [0.0, 0.0, 0.0] # proportions for backflip, sideflip, noflip
-        default_joint_angles = { # = target angles [rad] when action = 0.0
-            'FL_hip_joint': 0.0,   # [rad]
-            'RL_hip_joint': 0.0,   # [rad]
-            'FR_hip_joint': 0.0 ,  # [rad]
-            'RR_hip_joint': 0.0,   # [rad]
+        # default_joint_angles = { # = target angles [rad] when action = 0.0
+        #     'FL_hip_joint': 0.0,   # [rad]
+        #     'RL_hip_joint': 0.0,   # [rad]
+        #     'FR_hip_joint': 0.0 ,  # [rad]
+        #     'RR_hip_joint': 0.0,   # [rad]
 
-            'FL_thigh_joint': 0.8,     # [rad]
-            'RL_thigh_joint': 1.,   # [rad]
-            'FR_thigh_joint': 0.8,     # [rad]
-            'RR_thigh_joint': 1.,   # [rad]
+        #     'FL_thigh_joint': 0.8,     # [rad]
+        #     'RL_thigh_joint': 1.,   # [rad]
+        #     'FR_thigh_joint': 0.8,     # [rad]
+        #     'RR_thigh_joint': 1.,   # [rad]
 
-            'FL_calf_joint': -1.5,   # [rad]
-            'RL_calf_joint': -1.5,    # [rad]
-            'FR_calf_joint': -1.5,  # [rad]
-            'RR_calf_joint': -1.5,    # [rad]
-        }
+        #     'FL_calf_joint': -1.5,   # [rad]
+        #     'RL_calf_joint': -1.5,    # [rad]
+        #     'FR_calf_joint': -1.5,  # [rad]
+        #     'RR_calf_joint': -1.5,    # [rad]
+        # }
     class domain_rand(GO2Cfg.domain_rand):
         pass
         # randomize_base_mass = True
@@ -151,7 +151,7 @@ class WINCfg(GO2Cfg):
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # slope
             {'lin_vel_x': [-1.5, 1.5], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # rough slope
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0.0, 0.0]},  # stairs up
-            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-0.0, 0.0], 'ang_vel_yaw': [-0, 0], 'heading': [-0.0, 0.0]},  # stairs down
+            {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # stairs down
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.5, 1.5], 'heading': [-1.57, 1.57]},  # obstacles
             {'lin_vel_x': [-1.0, 1.0], 'lin_vel_y': [-1.0, 1.0], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # stepping stones
             {'lin_vel_x': [-0.5, 0.5], 'lin_vel_y': [-0.5, 0.5], 'ang_vel_yaw': [-1.0, 1.0], 'heading': [-1.57, 1.57]},  # gap
@@ -206,11 +206,11 @@ class WINCfg(GO2Cfg):
             # hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
-            dof_vel_limits = -0.01
+            dof_vel_limits = -0.03
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
-            action_smoothness = -0.01
+            action_smoothness = -0.02
             foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             feet_air_time_variance = -0.3
@@ -282,7 +282,7 @@ class WINRobotLabCfg(WINCfg):
             hip_to_zero = -5.0
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -3.0
-            dof_vel_limits = -0.01
+            dof_vel_limits = -0.03
 
 
 class WINRobotLabCfgMoECTS(WINCfgMoECTS):
@@ -296,7 +296,7 @@ class WINRobotLabCfgMoECTS(WINCfgMoECTS):
 
 
 class WINLegbotCfg(WINCfg):
-    """WIN variant with reward weights mapped from legbot_lab's VBot MoE CTS cfg.
+    """WIN variant with reward weights mapped from legbot_lab's real LegBot cfg.
 
     Commands, terrain distribution, asset, control, observations, and the
     low-height command machinery stay inherited from WINCfg.  The terrain-wise
@@ -320,53 +320,49 @@ class WINLegbotCfg(WINCfg):
             'FR_calf_joint': -1.5,  # [rad]
             'RR_calf_joint': -1.5,    # [rad]
         }    
+
+    class asset(WINCfg.asset):
+        penalize_contacts_on = ["thigh", "calf"]
         
     class commands(WINCfg.commands):
         terrain_max_command_ranges = GO2Cfg.commands.terrain_max_command_ranges
 
     class rewards(WINCfg.rewards):
-        curriculum_rewards = None
+        # Keep WIN/z2's native normal body height.  LegBot's normal target is
+        # robot-size-specific and should not be copied onto this asset.
+        base_height_target = WINCfg.rewards.base_height_target
+        curriculum_rewards = [
+            {'reward_name': 'lin_vel_z', 'start_iter': 0, 'end_iter': 1500, 'start_value': 1.0, 'end_value': 0.0},
+            {'reward_name': 'correct_base_height', 'start_iter': 0, 'end_iter': 5000, 'start_value': 1.0, 'end_value': 10.0},
+        ]
         dynamic_sigma = None
 
-        feet_air_time_threshold = 0.5
-        feet_air_time_command_dims = 3
-        feet_air_time_variance_upright_scale = False
-        collision_contact_threshold = 1.0
+        collision_contact_threshold = 5.0
 
-        robotlab_command_threshold = 0.0
-        robotlab_velocity_threshold = 0.3
-        robotlab_stand_still_scale = 5.0
-        robotlab_joint_pos_penalty_upright_scale = False
-        robotlab_feet_slide_upright_scale = False
-        robotlab_feet_height_body_target = 0.12
-        robotlab_feet_height_tanh_mult = 3.0
+        legbot_command_threshold = 0.1
+        legbot_velocity_threshold = 0.1
+        legbot_stand_still_scale = 1.0
 
         class scales:
-            # legbot_lab vbot/velocity_env_moe_cts_cfg.py RewardsCfg mapping.
+            # legbot_lab real LegBot env_cfg.py RewardsCfg mapping.
             tracking_lin_vel = 1.0
             tracking_ang_vel = 0.5
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            dof_vel = -0.001
-            dof_acc = -2.5e-7
-            torques = -2.5e-5
-            action_rate = -0.01
-            dof_pos_limits = -2.0
+            dof_acc = -1.0e-7
             dof_power = -2e-5
-            robotlab_joint_pos_penalty = -0.05
-            feet_air_time = 1.0
-            feet_air_time_variance = -1.0
-            robotlab_feet_slide = -0.1
+            torques = -1e-4
+            action_rate = -0.01
+            action_smoothness = -0.02
             collision = -1.0
-            stumble = -0.5
-            robotlab_feet_height_body = -0.5
-            hip_to_default = -0.05
+            dof_pos_limits = -2.0
             feet_regulation = -0.05
-            action_smoothness = -0.01
+            hip_pos_penalty_l1 = -0.05
+            joint_pos_penalty_l1 = -0.01
 
             # WIN-specific low-height command supervision retained by design.
-            correct_base_height = -3.0
-            dof_vel_limits = -0.01
+            correct_base_height = -1.0
+            low_height_correct_base_height = -20.0
 
 
 class WINLegbotCfgMoECTS(WINCfgMoECTS):

@@ -812,6 +812,60 @@ class WINRobot(Go2Robot):
         penalty[low_height_mask] = 0.0
         return penalty
 
+    def _get_legbot_l1_joint_indices(self, cache_name, joint_parts):
+        if not hasattr(self, cache_name):
+            indices = [
+                idx for idx, name in enumerate(self.dof_names)
+                if any(part in name for part in joint_parts)
+            ]
+            if not indices:
+                raise RuntimeError(
+                    f"Could not find joints containing {joint_parts} in dof_names={self.dof_names}"
+                )
+            setattr(
+                self,
+                cache_name,
+                torch.tensor(indices, dtype=torch.long, device=self.device),
+            )
+        return getattr(self, cache_name)
+
+    def _reward_hip_pos_penalty_l1(self):
+        """Real LegBot hip L1 posture penalty, disabled during low-height command."""
+        joint_ids = self._get_legbot_l1_joint_indices("legbot_hip_l1_joint_ids", ("hip",))
+        command_threshold = getattr(self.cfg.rewards, "legbot_command_threshold", 0.1)
+        stand_still_scale = getattr(self.cfg.rewards, "legbot_stand_still_scale", 1.0)
+
+        command = self.commands[:, [1, 2]]
+        cmd_large = torch.any(torch.abs(command) > command_threshold, dim=1)
+        penalty = torch.sum(
+            torch.abs(self.dof_pos[:, joint_ids] - self.default_dof_pos[:, joint_ids]),
+            dim=1,
+        )
+        penalty = torch.where(cmd_large, penalty, stand_still_scale * penalty)
+        penalty[self._get_is_low_height_command_mask()] = 0.0
+        return penalty
+
+    def _reward_joint_pos_penalty_l1(self):
+        """Real LegBot thigh/calf L1 posture penalty, disabled during low-height command."""
+        joint_ids = self._get_legbot_l1_joint_indices(
+            "legbot_thigh_calf_l1_joint_ids",
+            ("thigh", "calf"),
+        )
+        command_threshold = getattr(self.cfg.rewards, "legbot_command_threshold", 0.1)
+        velocity_threshold = getattr(self.cfg.rewards, "legbot_velocity_threshold", 0.1)
+        stand_still_scale = getattr(self.cfg.rewards, "legbot_stand_still_scale", 1.0)
+
+        cmd_norm = torch.norm(self.commands[:, :3], dim=1)
+        body_vel = torch.norm(self.base_lin_vel[:, :2], dim=1)
+        moving_mask = (cmd_norm > command_threshold) | (body_vel > velocity_threshold)
+        penalty = torch.sum(
+            torch.abs(self.dof_pos[:, joint_ids] - self.default_dof_pos[:, joint_ids]),
+            dim=1,
+        )
+        penalty = torch.where(moving_mask, penalty, stand_still_scale * penalty)
+        penalty[self._get_is_low_height_command_mask()] = 0.0
+        return penalty
+
     def _reward_lateral_yaw_tracking_error(self):
         """低高度特殊指令下，对 y 速度和 yaw 角速度的命令偏差施加强惩罚。"""
         lateral_vel_error = self.base_lin_vel[:, 1] - self.commands[:, 1]
@@ -845,6 +899,20 @@ class WINRobot(Go2Robot):
         base_height = self._get_base_height()
         target_height = self._get_commanded_base_height_target()
         return torch.square(base_height - target_height)
+
+    def _reward_low_height_correct_base_height(self):
+        """Extra low-height-only base-height supervision.
+
+        The regular `correct_base_height` term follows both normal and low
+        height commands.  Low-height samples are sparse, so this adds a focused
+        penalty only when the low-height command is active.
+        """
+        low_height_mask = self._get_is_low_height_command_mask()
+        if not low_height_mask.any():
+            return torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        base_height = self._get_base_height()
+        penalty = torch.square(base_height - self.cfg.rewards.low_base_height_target)
+        return penalty * low_height_mask.float()
 
     def _reward_base_height(self):
         """兼容版 base-height reward。
