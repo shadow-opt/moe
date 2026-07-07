@@ -359,7 +359,7 @@ class WINLegbotCfg(WINCfg):
             feet_regulation = -0.05
             hip_pos_penalty_l1 = -0.05
             joint_pos_penalty_l1 = -0.01
-
+            dof_vel_limits = -0.03
             # WIN-specific low-height command supervision retained by design.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
