@@ -205,7 +205,7 @@ class WINCfg(GO2Cfg):
             # hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
-            dof_vel_limits = -0.03
+            dof_vel_limits = -0.02
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
@@ -283,7 +283,7 @@ class WINRobotLabCfg(WINCfg):
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
-            dof_vel_limits = -0.03
+            dof_vel_limits = -0.02
 
 
 class WINRobotLabCfgMoECTS(WINCfgMoECTS):
@@ -359,7 +359,7 @@ class WINLegbotCfg(WINCfg):
             feet_regulation = -0.05
             hip_pos_penalty_l1 = -0.05
             joint_pos_penalty_l1 = -0.01
-            dof_vel_limits = -0.03
+            dof_vel_limits = -0.02
             # WIN-specific low-height command supervision retained by design.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
