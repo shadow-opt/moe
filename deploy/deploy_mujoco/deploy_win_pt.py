@@ -68,17 +68,7 @@ def get_xbox_command(joystick, max_cmd):
 
 
 def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_state):
-    """更新手柄输入：摇杆控制速度，A 键切换低高度模式。
-
-    Args:
-        command_obs: 8-dim command array [vx, vy, wz, body_height, jump_dx, dy, dz, trigger]
-        joystick: pygame Joystick object or None
-        max_cmd: [max_vx, max_vy, max_wz]
-        button_state: dict tracking previous button states for edge detection
-
-    Returns:
-        command_obs (updated in-place)
-    """
+    """Update [vx, vy, yaw, height, climb, wall_height] from an Xbox controller."""
     pygame.event.pump()
     dead_zone = 0.1
     if joystick is not None:
@@ -96,11 +86,27 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
         # A 键 (button 0) 切换低高度模式
         a_pressed = joystick.get_button(0)
         if a_pressed and not button_state.get("a", False):
-            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.0
+            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
         button_state["a"] = a_pressed
+
+        b_pressed = joystick.get_button(1)
+        if b_pressed and not button_state.get("b", False):
+            command_obs[4] = 0.0 if command_obs[4] > 0.5 else 1.0
+        button_state["b"] = b_pressed
     else:
         command_obs[:3] = 0.0
-    command_obs[4:] = 0.0
+    apply_climb_command(command_obs)
+    return command_obs
+
+
+def apply_climb_command(command_obs):
+    if len(command_obs) < 6:
+        return command_obs
+    if command_obs[4] > 0.5:
+        command_obs[:3] = [0.30, 0.0, 0.0]
+        command_obs[5] = 0.30
+    else:
+        command_obs[5] = 0.0
     return command_obs
 
 
@@ -141,7 +147,7 @@ class KeyboardCommandController:
         if key_name is None:
             return
         with self.lock:
-            if key_name not in self.keys and key_name in ("h", "r"):
+            if key_name not in self.keys and key_name in ("h", "c", "r"):
                 self.edge_keys.append(key_name)
             self.keys.add(key_name)
 
@@ -161,7 +167,9 @@ class KeyboardCommandController:
         if "r" in edge_keys:
             command_obs[:] = 0.0
         elif "h" in edge_keys and len(command_obs) > 3:
-            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.0
+            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
+        elif "c" in edge_keys and len(command_obs) > 4:
+            command_obs[4] = 0.0 if command_obs[4] > 0.5 else 1.0
 
         if "space" in keys:
             command_obs[:3] = 0.0
@@ -173,8 +181,7 @@ class KeyboardCommandController:
             command_obs[1] = vy_axis * self.max_cmd[1]
             command_obs[2] = wz_axis * self.max_cmd[2]
 
-        if len(command_obs) > 4:
-            command_obs[4:] = 0.0
+        apply_climb_command(command_obs)
         return command_obs
 
     def stop(self):
@@ -216,7 +223,7 @@ if __name__ == "__main__":
         else:
             print("No Joystick detected. Using default commands from config.")
     elif control_mode == "keyboard":
-        print("Keyboard control enabled: hold W/S or Up/Down=vx, A/D or Left/Right=vy, Q/E=wz, Space=stop, H=height, R=reset.")
+        print("Keyboard control enabled: W/S=vx, A/D=vy, Q/E=wz, Space=stop, H=height, C=climb, R=reset.")
     else:
         print("Using static commands from config cmd_init.")
 

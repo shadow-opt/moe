@@ -5,6 +5,7 @@ from scipy import interpolate
 
 from isaacgym import terrain_utils
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg
+from legged_gym.utils.thin_wall import thin_wall_terrain
 
 class Terrain:
     def __init__(self, cfg: LeggedRobotCfg.terrain, num_robots) -> None:
@@ -76,7 +77,7 @@ class Terrain:
             (i, j) = np.unravel_index(k, (self.cfg.num_rows, self.cfg.num_cols))
 
             terrain = terrain_utils.SubTerrain("terrain",
-                              width=self.width_per_env_pixels,
+                              width=self.length_per_env_pixels,
                               length=self.width_per_env_pixels,
                               vertical_scale=self.vertical_scale,
                               horizontal_scale=self.horizontal_scale)
@@ -86,7 +87,7 @@ class Terrain:
     
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain("terrain",
-                                width=self.width_per_env_pixels,
+                                width=self.length_per_env_pixels,
                                 length=self.width_per_env_pixels,
                                 vertical_scale=self.cfg.vertical_scale,
                                 horizontal_scale=self.cfg.horizontal_scale)
@@ -169,10 +170,26 @@ class Terrain:
 
             # gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
             # gap_plus_terrain(terrain, gap_size=gap_size)
-        else:  # 平地
+        elif choice < self.proportions[8]:  # 平地
             terrain.terrain_name = "flat"
             terrain.terrain_id = 8
             pit_terrain(terrain, depth=0.0, platform_size=4.)
+        else:  # 薄墙
+            terrain.terrain_name = "thin_wall"
+            terrain.terrain_id = 9
+            wall_heights = getattr(self.cfg, "thin_wall_heights", [0.23, 0.25, 0.27, 0.29, 0.31, 0.33, 0.35])
+            fixed_height = getattr(self.cfg, "thin_wall_fixed_height", None)
+            if fixed_height is None:
+                level = int(np.clip(np.round(difficulty * self.cfg.num_rows), 0, len(wall_heights) - 1))
+                wall_height = wall_heights[level]
+            else:
+                wall_height = fixed_height
+            thin_wall_terrain(
+                terrain,
+                wall_height=wall_height,
+                wall_thickness=getattr(self.cfg, "thin_wall_thickness", 0.05),
+                wall_front_offset=getattr(self.cfg, "thin_wall_front_offset", 0.425),
+            )
         
         return terrain
 
@@ -192,9 +209,13 @@ class Terrain:
         x2 = int((self.env_length/2. + 1) / terrain.horizontal_scale)
         y1 = int((self.env_width/2. - 1) / terrain.horizontal_scale)
         y2 = int((self.env_width/2. + 1) / terrain.horizontal_scale)
-        env_origin_z = np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
+        if terrain.terrain_id == 9:
+            # A wall intersects the normal origin sampling window.  Using the
+            # maximum there would place the robot on the wall top.
+            env_origin_z = 0.0
+        else:
+            env_origin_z = np.max(terrain.height_field_raw[x1:x2, y1:y2])*terrain.vertical_scale
         self.env_origins[i, j] = [env_origin_x, env_origin_y, env_origin_z]
-
 def gap_terrain(terrain, gap_size, platform_size=1.):
     gap_size = int(gap_size / terrain.horizontal_scale)
     platform_size = int(platform_size / terrain.horizontal_scale)

@@ -118,11 +118,22 @@ class TaskRegistry():
         runner = eval(train_cfg.runner_class_name)(env, train_cfg_dict, log_dir, device=args.rl_device)
         #save resume path before creating a new log_dir
         resume = train_cfg.runner.resume
+        warmstart_path = getattr(args, "warmstart_path", None)
+        if resume and warmstart_path:
+            raise ValueError("--resume and --warmstart_path are mutually exclusive")
         if resume:
             # load previously trained model
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
             print(f"Loading model from: {resume_path}")
             runner.load(resume_path)
+        elif warmstart_path:
+            warmstart_path = os.path.abspath(os.path.expanduser(warmstart_path))
+            if not os.path.isfile(warmstart_path):
+                raise FileNotFoundError(f"Warm-start checkpoint not found: {warmstart_path}")
+            if not hasattr(runner, "load_weights"):
+                raise TypeError(f"{type(runner).__name__} does not support weight-only warm-start")
+            print(f"Warm-starting model weights from: {warmstart_path}")
+            runner.load_weights(warmstart_path)
         return runner, train_cfg
 
 # make global task registry

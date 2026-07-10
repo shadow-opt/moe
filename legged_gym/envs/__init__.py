@@ -12,6 +12,15 @@ from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
 from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS
 from legged_gym.envs.nocv.him_cfg import HIMCfg, HIMCfgPPO, HimlocoCfg
 from legged_gym.envs.nocv.gap_cfg import WINGapCfg
+from legged_gym.envs.nocv.win_close_climb_env import WINCloseClimbRobot
+from legged_gym.envs.nocv.win_close_climb_cfg import (
+    WINCloseClimbAcquireCfg,
+    WINCloseClimbCfg,
+    WINCloseClimbEvalCfg,
+    WINCloseClimbAcquireCfgMoECTS,
+    WINCloseClimbTransitionCfgMoECTS,
+    WINCloseClimbEvalCfgMoECTS,
+)
 from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
@@ -52,3 +61,28 @@ task_registry.register("win_v_cts", WINRobot, WINVanillaCTS(), WINCfgCTS())
 task_registry.register("him", WINRobot, HimlocoCfg(), HIMCfgPPO())
 task_registry.register("win_gap", WINRobot, WINGapCfg(), WINCfgMoECTS())
 task_registry.register("win_gap_cts", WINRobot, WINGapCfg(), WINCfgCTS())
+task_registry.register(
+    "win_close_climb_acquire",
+    WINCloseClimbRobot,
+    WINCloseClimbAcquireCfg(),
+    WINCloseClimbAcquireCfgMoECTS(),
+)
+task_registry.register(
+    "win_close_climb_transition",
+    WINCloseClimbRobot,
+    WINCloseClimbCfg(),
+    WINCloseClimbTransitionCfgMoECTS(),
+)
+task_registry.register(
+    "win_close_climb_eval",
+    WINCloseClimbRobot,
+    WINCloseClimbEvalCfg(),
+    WINCloseClimbEvalCfgMoECTS(),
+)
+# Default close-climb entry point intentionally follows the deployment-ready transition stage.
+task_registry.register(
+    "win_close_climb",
+    WINCloseClimbRobot,
+    WINCloseClimbCfg(),
+    WINCloseClimbTransitionCfgMoECTS(),
+)

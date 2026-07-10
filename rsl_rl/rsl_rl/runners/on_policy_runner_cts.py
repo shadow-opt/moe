@@ -349,13 +349,22 @@ class OnPolicyRunnerCTS:
                 time.sleep(60)  # wait for 1 minute before checking again
 
     def load(self, path, load_optimizer=True):
-        loaded_dict = torch.load(path)
-        self.alg.model.load_state_dict(loaded_dict['model_state_dict'])
+        loaded_dict = torch.load(path, map_location=self.device)
+        self.alg.model.load_state_dict(loaded_dict['model_state_dict'], strict=True)
         if load_optimizer:
             self.alg.optimizer1.load_state_dict(loaded_dict['optimizer1_state_dict'])
             self.alg.optimizer2.load_state_dict(loaded_dict['optimizer2_state_dict'])
         self.current_learning_iteration = loaded_dict['iter']
         return loaded_dict['infos']
+
+    def load_weights(self, path):
+        """Strict model-only warm-start with fresh optimizers and iteration zero."""
+        loaded_dict = torch.load(path, map_location=self.device)
+        if "model_state_dict" not in loaded_dict:
+            raise KeyError(f"Checkpoint has no model_state_dict: {path}")
+        self.alg.model.load_state_dict(loaded_dict["model_state_dict"], strict=True)
+        self.current_learning_iteration = 0
+        return loaded_dict.get("infos")
 
     def get_inference_policy(self, device=None):
         self.alg.model.eval() # switch to evaluation mode (dropout for example)

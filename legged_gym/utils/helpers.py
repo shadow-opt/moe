@@ -129,6 +129,7 @@ def get_args():
     custom_parameters = [
         {"name": "--task", "type": str, "default": "go2", "help": "Resume training or start testing from a checkpoint. Overrides config file if provided."},
         {"name": "--resume", "action": "store_true", "default": False,  "help": "Resume training from a checkpoint"},
+        {"name": "--warmstart_path", "type": str, "help": "Strictly load model weights only; optimizer and iteration start fresh."},
         {"name": "--experiment_name", "type": str,  "help": "Name of the experiment to run or load. Overrides config file if provided."},
         {"name": "--run_name", "type": str,  "help": "Name of the run. Overrides config file if provided."},
         {"name": "--load_run", "type": str,  "help": "Name of the run to load when resume=True. If -1: will load the last run. Overrides config file if provided."},
@@ -140,6 +141,9 @@ def get_args():
         {"name": "--num_envs", "type": int, "help": "Number of environments to create. Overrides config file if provided."},
         {"name": "--seed", "type": int, "help": "Random seed. Overrides config file if provided."},
         {"name": "--max_iterations", "type": int, "help": "Maximum number of training iterations. Overrides config file if provided."},
+        {"name": "--eval_steps", "type": int, "default": 10000, "help": "Number of policy steps for batch evaluation."},
+        {"name": "--eval_wall_height", "type": float, "default": 0.30, "help": "Fixed thin-wall height for close-climb evaluation."},
+        {"name": "--eval_mode", "type": str, "default": "wall", "choices": ["wall", "flat"], "help": "Close-climb evaluation terrain mode."},
 
         {"name": "--robogauge", "action": "store_true", "default": False, "help": "Enable robogauge evaluation interface."},
         {"name": "--robogauge_port", "type": int, "default": 9973, "help": "Port for robogauge evaluation interface."},

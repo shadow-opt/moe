@@ -5,6 +5,10 @@ from warnings import WarningMessage
 import numpy as np
 import os
 
+# Isaac Gym's legacy torch_utils still references the NumPy 1.24-removed alias.
+if not hasattr(np, "float"):
+    np.float = float
+
 from isaacgym.torch_utils import *
 from isaacgym import gymtorch, gymapi, gymutil
 

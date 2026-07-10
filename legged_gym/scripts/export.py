@@ -173,13 +173,7 @@ def _export_checkpoint_input(
 		raise ValueError("输入 .pt 不是有效 checkpoint（未找到 state_dict/model_state_dict）。")
 	state_dict = _strip_module_prefix(state_dict)
 
-	missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-	if missing_keys or unexpected_keys:
-		print(f"[WARN] missing_keys: {len(missing_keys)}, unexpected_keys: {len(unexpected_keys)}")
-		if missing_keys:
-			print(f"[WARN] first missing keys: {missing_keys[:10]}")
-		if unexpected_keys:
-			print(f"[WARN] first unexpected keys: {unexpected_keys[:10]}")
+	model.load_state_dict(state_dict, strict=True)
 
 	os.makedirs(output_dir, exist_ok=True)
 	if export_jit:
