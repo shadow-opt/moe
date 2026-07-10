@@ -32,7 +32,7 @@ python legged_gym/scripts/train.py \
   --warmstart_path logs/win_flat_slow_moe_cts/Jul05_17-22-50_flat_slow/model_85000.pt
 ```
 
-Acquisition uses 75% wall and 25% flat environments. Wall robots start 0.40-0.45 m from the front face with climb mode already enabled. The default run is 4096 environments, 24 steps per rollout, 5000 iterations, and saves every 500 iterations.
+Acquisition uses 75% wall and 25% flat environments. Wall robots start 0.40-0.45 m from the front face with climb mode already enabled. The default run is 4096 environments, 24 steps per rollout, 5000 iterations, and saves at the 5000-iteration interval plus the final checkpoint.
 
 Resume an interrupted acquisition run:
 

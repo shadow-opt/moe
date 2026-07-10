@@ -167,7 +167,7 @@ class WINCloseClimbAcquireCfgMoECTS(WINFlatSlowCfgMoECTS):
         experiment_name = "win_close_climb_acquire"
         num_steps_per_env = 24
         max_iterations = 5000
-        save_interval = 500
+        save_interval = 5000
 
 
 class WINCloseClimbTransitionCfgMoECTS(WINFlatSlowCfgMoECTS):
@@ -180,7 +180,7 @@ class WINCloseClimbTransitionCfgMoECTS(WINFlatSlowCfgMoECTS):
         experiment_name = "win_close_climb_transition"
         num_steps_per_env = 24
         max_iterations = 5000
-        save_interval = 500
+        save_interval = 5000
 
 
 class WINCloseClimbEvalCfgMoECTS(WINCloseClimbTransitionCfgMoECTS):
