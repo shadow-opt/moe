@@ -3,6 +3,7 @@ from pathlib import Path
 PATH_PARENT = Path(__file__).parent
 sys.path.append(str(PATH_PARENT))
 from utils import MujocoRenderUtils
+from joint_limit_monitor import JointLimitMonitor, prepare_velocity_limits
 
 import os
 import time
@@ -240,6 +241,7 @@ if __name__ == "__main__":
 
         kps = np.array(config["kps"], dtype=np.float32)
         kds = np.array(config["kds"], dtype=np.float32)
+        configured_velocity_limits = config.get("joint_velocity_limits")
 
         default_angles = np.array(config["default_angles"], dtype=np.float32)
 
@@ -343,10 +345,40 @@ if __name__ == "__main__":
     idx_qpos2model = [qpos_joint_names.index(joint) for joint in model_joint_names]
     idx_ctrl_from_qpos = [qpos_joint_names.index(joint) for joint in actuator_joint_names]
 
+    joint_velocity_limits, velocity_limit_warning = prepare_velocity_limits(
+        configured_velocity_limits, config_mujoco_joint_names, qpos_joint_names
+    )
+
     default_angles = reorder_by_joint_names(default_angles, config_mujoco_joint_names, qpos_joint_names)
     kps = reorder_by_joint_names(kps, config_mujoco_joint_names, qpos_joint_names)
     kds = reorder_by_joint_names(kds, config_mujoco_joint_names, qpos_joint_names)
     target_dof_pos = default_angles.copy()
+
+    qpos_joint_ids = [
+        mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, joint_name)
+        for joint_name in qpos_joint_names
+    ]
+    joint_qpos_indices = np.array([m.jnt_qposadr[joint_id] for joint_id in qpos_joint_ids])
+    joint_dof_indices = np.array([m.jnt_dofadr[joint_id] for joint_id in qpos_joint_ids])
+    position_ranges = np.full((num_actions, 2), np.nan, dtype=np.float64)
+    torque_ranges = np.full((num_actions, 2), np.nan, dtype=np.float64)
+    for index, joint_id in enumerate(qpos_joint_ids):
+        if m.jnt_limited[joint_id]:
+            position_ranges[index] = m.jnt_range[joint_id]
+        if m.jnt_actfrclimited[joint_id]:
+            torque_ranges[index] = m.jnt_actfrcrange[joint_id]
+    limit_monitor = JointLimitMonitor(
+        qpos_joint_names,
+        position_ranges=position_ranges,
+        velocity_limits=joint_velocity_limits,
+        torque_ranges=torque_ranges,
+    )
+    if velocity_limit_warning is not None:
+        print(velocity_limit_warning)
+    for warning in limit_monitor.configuration_warnings():
+        if velocity_limit_warning is None or "metric=velocity" not in warning:
+            print(warning)
+    print(limit_monitor.startup_summary())
 
     init_base_quat_norm = np.linalg.norm(init_base_quat)
     if init_base_quat_norm <= 0.0:
@@ -444,6 +476,15 @@ if __name__ == "__main__":
             # a policy and applies a control signal before stepping the physics.
             mujoco.mj_step(m, d)
             mujoco_render_utils.update(cmd, d)
+            limit_event = limit_monitor.update(
+                d.time,
+                d.qpos[joint_qpos_indices],
+                d.qvel[joint_dof_indices],
+                tau,
+                d.qfrc_actuator[joint_dof_indices],
+            )
+            if limit_event is not None:
+                print(f"\n{limit_event}", flush=True)
 
             if save_video and counter % frame_skip == 0:
                 try:

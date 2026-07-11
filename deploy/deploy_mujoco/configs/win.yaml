@@ -5,7 +5,7 @@
 # policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_flat_slow_moe_cts/exported/Jul05_17-22-50_flat_slow/policy.pt"
-policy_path: "/home/sha-opt/moe/logs/win_legbot/exported/policies/policy.pt"
+# policy_path: "/home/sha-opt/moe/logs/win_legbot/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_robotlab_moe_cts/exported/Jul06_01-16-00_robotlab_go2_rewards/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_robotlab_moe_cts/exported/policies/policy.pt"
 # policy_path: "/home/sha-opt/moe/logs/win_go2_stair_moe_cts/exported/policies/policy.pt"
@@ -34,6 +34,8 @@ kps: [30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]
 # kps: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25]
 kds: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] 
 # kds: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+# Joint velocity limits in mujoco_joint_names order (rad/s).
+joint_velocity_limits: [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15]
 # aaaaa_fixed is kept aligned with j60 joint order: FL, RL, FR, RR.
 # Keep default_angles and mujoco_joint_names aligned to XML qpos order.
 # default_angles: [0.0,  0.65,  -1.05,   0.0, 0.65, -1.05,
