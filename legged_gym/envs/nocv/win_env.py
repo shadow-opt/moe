@@ -1141,9 +1141,17 @@ class WINRobot(Go2Robot):
         return reward * self._robotlab_upright_scale()
 
     def _reward_robotlab_feet_air_time(self):
+        """RobotLab feet-air-time reward, settled on each foot's first contact."""
         threshold = getattr(self.cfg.rewards, "robotlab_feet_air_time_threshold", 0.5)
-        reward = torch.sum((self.feet_last_air_time - threshold) * self.feet_first_contact.float(), dim=1)
-        reward *= (torch.norm(self.commands[:, :3], dim=1) > 0.1).float()
+        command_threshold = getattr(
+            self.cfg.rewards,
+            "robotlab_feet_air_time_command_threshold",
+            0.1,
+        )
+        first_contact = self.feet_first_contact.float()
+        last_air_time = self.feet_last_air_time
+        reward = torch.sum((last_air_time - threshold) * first_contact, dim=1)
+        reward *= (torch.linalg.norm(self.commands[:, :3], dim=1) > command_threshold).float()
         return reward * self._robotlab_upright_scale()
 
     def _reward_robotlab_feet_contact_without_cmd(self):

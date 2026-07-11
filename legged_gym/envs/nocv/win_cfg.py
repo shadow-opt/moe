@@ -251,6 +251,7 @@ class WINRobotLabCfg(WINCfg):
         robotlab_velocity_threshold = 0.5
         robotlab_stand_still_scale = 5.0
         robotlab_feet_air_time_threshold = 0.5
+        robotlab_feet_air_time_command_threshold = 0.1
         robotlab_feet_height_body_target = -0.2
         robotlab_feet_height_tanh_mult = 2.0
         robotlab_gait_std = 0.5 ** 0.5
@@ -276,9 +277,9 @@ class WINRobotLabCfg(WINCfg):
             feet_air_time_variance = -1.0
             robotlab_feet_contact_without_cmd = 0.1
             robotlab_feet_slide = -0.1
-            robotlab_feet_height_body = -1.0
+            robotlab_feet_height_body = -2.0
             robotlab_feet_gait = 0.5
-            robotlab_upward = 1.0
+            robotlab_upward = 0.0
             hip_to_zero = -5.0
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -1.0
