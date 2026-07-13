@@ -242,6 +242,10 @@ class WINRobotLabCfg(WINCfg):
     """
     class terrain(WINCfg.terrain):
         terrain_max_command_ranges = GO2Cfg.commands.terrain_max_command_ranges
+
+    class commands(WINCfg.commands):
+        monotonic_command_prob = 0.3
+        monotonic_command_type_probs = [0.45, 0.25, 0.30]
         
     class rewards(WINCfg.rewards):
         max_contact_force = 100.0
