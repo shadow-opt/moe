@@ -1083,6 +1083,7 @@ class WINRobot(Go2Robot):
         return pose_error * self._robotlab_commandless_mask().float() * self._robotlab_upright_scale()
 
     def _reward_robotlab_joint_pos_penalty(self):
+        """RobotLab posture penalty outside WIN's command-driven low-height mode."""
         command_threshold = getattr(self.cfg.rewards, "robotlab_command_threshold", 0.1)
         velocity_threshold = getattr(self.cfg.rewards, "robotlab_velocity_threshold", 0.5)
         stand_still_scale = getattr(self.cfg.rewards, "robotlab_stand_still_scale", 5.0)
@@ -1096,6 +1097,11 @@ class WINRobot(Go2Robot):
             | self._robotlab_special_command_mask()
         )
         reward = torch.where(moving_mask, pose_error, stand_still_scale * pose_error)
+        reward = torch.where(
+            self._get_is_low_height_command_mask(),
+            torch.zeros_like(reward),
+            reward,
+        )
         if getattr(self.cfg.rewards, "robotlab_joint_pos_penalty_upright_scale", True):
             reward *= self._robotlab_upright_scale()
         return reward

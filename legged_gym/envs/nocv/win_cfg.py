@@ -245,7 +245,22 @@ class WINRobotLabCfg(WINCfg):
         
     class rewards(WINCfg.rewards):
         max_contact_force = 100.0
-        curriculum_rewards = None
+        curriculum_rewards = [
+            {
+                'reward_name': 'lateral_yaw_tracking_error',
+                'start_iter': 0,
+                'end_iter': 70000,
+                'start_value': 1.0,
+                'end_value': 5.0,
+            },
+            {
+                'reward_name': 'hip_to_zero',
+                'start_iter': 0,
+                'end_iter': 70000,
+                'start_value': 1.0,
+                'end_value': 20.0,
+            },
+        ]
 
         robotlab_command_threshold = 0.1
         robotlab_velocity_threshold = 0.5
@@ -277,10 +292,11 @@ class WINRobotLabCfg(WINCfg):
             feet_air_time_variance = -1.0
             robotlab_feet_contact_without_cmd = 0.1
             robotlab_feet_slide = -0.1
-            robotlab_feet_height_body = -2.0
+            robotlab_feet_height_body = -4.0
             robotlab_feet_gait = 0.5
             robotlab_upward = 0.0
-            hip_to_zero = -5.0
+            lateral_yaw_tracking_error = -0.3
+            hip_to_zero = -0.5
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
@@ -295,6 +311,36 @@ class WINRobotLabCfgMoECTS(WINCfgMoECTS):
         experiment_name = 'win_robotlab_moe_cts'
         max_iterations = 120000
         save_interval = 5000
+
+
+class WINRobotLabHeightCfg(WINRobotLabCfg):
+    """A/B arm A: original RobotLab balance, biased toward swing-foot height."""
+
+    class rewards(WINRobotLabCfg.rewards):
+        class scales(WINRobotLabCfg.rewards.scales):
+            robotlab_feet_air_time = 0.1
+            robotlab_feet_height_body = -5.0
+
+
+class WINRobotLabHeightCfgMoECTS(WINRobotLabCfgMoECTS):
+    class runner(WINRobotLabCfgMoECTS.runner):
+        run_name = 'robotlab_height_a'
+        experiment_name = 'win_robotlab_height_moe_cts'
+
+
+class WINRobotLabAirCfg(WINRobotLabCfg):
+    """A/B arm B: favor longer swing time with softer foot-height shaping."""
+
+    class rewards(WINRobotLabCfg.rewards):
+        class scales(WINRobotLabCfg.rewards.scales):
+            robotlab_feet_air_time = 0.5
+            robotlab_feet_height_body = -2.0
+
+
+class WINRobotLabAirCfgMoECTS(WINRobotLabCfgMoECTS):
+    class runner(WINRobotLabCfgMoECTS.runner):
+        run_name = 'robotlab_air_b'
+        experiment_name = 'win_robotlab_air_moe_cts'
 
 
 class WINLegbotCfg(WINCfg):
