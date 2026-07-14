@@ -165,7 +165,7 @@ class WINCfg(GO2Cfg):
         low_base_height_target = 0.18
         base_height_target = 0.37
         soft_dof_pos_limit = 0.8
-        soft_dof_vel_limit = 0.9
+        soft_dof_vel_limit = 0.8
         soft_torque_limit = 0.75
         foot_slip_deadzone = 0.02
         foot_slip_excluded_terrain_ids = [3, 4]
@@ -205,11 +205,11 @@ class WINCfg(GO2Cfg):
             # hip_to_default = 0.0
             hip_to_zero = -0.5
             torques = -1e-4
-            dof_vel_limits = -0.02
+            dof_vel_limits = -0.03
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
-            action_smoothness = -0.012
+            action_smoothness = -0.02
             foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             feet_air_time_variance = -0.3
@@ -304,7 +304,7 @@ class WINRobotLabCfg(WINCfg):
             # WIN-specific low-height command supervision retained by request.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
-            dof_vel_limits = -0.02
+            dof_vel_limits = -0.03
 
 
 class WINRobotLabCfgMoECTS(WINCfgMoECTS):
@@ -410,7 +410,7 @@ class WINLegbotCfg(WINCfg):
             feet_regulation = -0.05
             hip_pos_penalty_l1 = -0.05
             joint_pos_penalty_l1 = -0.01
-            dof_vel_limits = -0.02
+            dof_vel_limits = -0.03
             # WIN-specific low-height command supervision retained by design.
             correct_base_height = -1.0
             low_height_correct_base_height = -20.0
@@ -583,6 +583,21 @@ class WINFlatSlowCfgMoECTS(WINCfgMoECTS):
     class runner(WINCfgMoECTS.runner):
         run_name = 'flat_slow'
         experiment_name = 'win_flat_slow_moe_cts'
+
+
+class WINFlatSlowWorldFeetRegCfg(WINFlatSlowCfg):
+    """A/B variant replacing the legacy feet regulation projection only."""
+
+    class rewards(WINFlatSlowCfg.rewards):
+        class scales(WINFlatSlowCfg.rewards.scales):
+            feet_regulation = 0.0
+            feet_regulation_world = -0.05
+
+
+class WINFlatSlowWorldFeetRegCfgMoECTS(WINFlatSlowCfgMoECTS):
+    class runner(WINFlatSlowCfgMoECTS.runner):
+        run_name = 'world_feet_reg'
+        experiment_name = 'win_flat_slow_world_feet_reg_moe_cts'
 
 
 class WINGuardedCfg(WINCfg):

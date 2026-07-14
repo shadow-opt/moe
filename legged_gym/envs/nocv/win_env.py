@@ -3,6 +3,7 @@ from isaacgym.torch_utils import quat_rotate_inverse
 
 from legged_gym.envs.go2.go2_env import Go2Robot
 from legged_gym.utils.isaacgym_utils import sample_disjoint_intervals, sample_single_interval
+from legged_gym.envs.nocv.reward_utils import feet_height_from_world_gravity
 
 class WINRobot(Go2Robot):
     """
@@ -972,6 +973,33 @@ class WINRobot(Go2Robot):
             * torch.exp(-feet_height / (0.025 * target_height.unsqueeze(1)))
         ).sum(-1)
         return rew
+
+    def _reward_feet_regulation_world(self):
+        """Feet regulation using world-frame positions and world-frame gravity."""
+        base_height = self._get_base_height()
+        body_states = self.rigid_body_states.view(self.num_envs, self.num_bodies, 13)
+        feet_pos = body_states[:, self.feet_indices, 0:3]
+        feet_xy_vel = body_states[:, self.feet_indices, 7:9]
+        feet_height = feet_height_from_world_gravity(
+            base_height,
+            feet_pos,
+            self.root_states[:, 0:3],
+            self.gravity_vec,
+        )
+
+        target_height = torch.full(
+            (self.num_envs,),
+            self.cfg.rewards.base_height_target,
+            dtype=torch.float,
+            device=self.device,
+        )
+        low_height_mask = self._get_is_low_height_command_mask()
+        target_height[low_height_mask] = self.cfg.rewards.low_base_height_target
+
+        return (
+            feet_xy_vel.pow(2).sum(-1)
+            * torch.exp(-feet_height / (0.025 * target_height.unsqueeze(1)))
+        ).sum(-1)
     
 
     def _reward_straight_path(self):
