@@ -209,8 +209,8 @@ class WINCfg(GO2Cfg):
             dof_pos_limits = -4.0
             action_rate = -0.01
             feet_air_time = 1.0
-            action_smoothness = -0.02
-            foot_slip = -0.01
+            action_smoothness = -0.01
+            # foot_slip = -0.01
             low_speed_feet_air_time = 0.5
             feet_air_time_variance = -0.3
             feet_contact_without_cmd = 0.03
