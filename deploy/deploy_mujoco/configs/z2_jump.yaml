@@ -1,0 +1,73 @@
+# xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/rc_field.xml"
+xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/go2/rc_field.xml"
+
+simulation:
+  duration: 120.0
+  dt: 0.005
+  control_decimation: 4
+  viewer_camera: "chase_cam"
+
+policy_interface:
+  num_actions: 12
+  num_single_obs: 47
+  frame_stack: 10
+  action_scale: 0.25
+  clip_observations: 100.0
+  clip_actions: 100.0
+  obs_scales:
+    ang_vel: 0.25
+    dof_pos: 1.0
+    dof_vel: 0.05
+    euler: 1.0
+    velocity_command: [2.0, 2.0, 0.25]
+
+model_joint_names:
+  - FL_hip_joint
+  - FL_thigh_joint
+  - FL_calf_joint
+  - FR_hip_joint
+  - FR_thigh_joint
+  - FR_calf_joint
+  - RL_hip_joint
+  - RL_thigh_joint
+  - RL_calf_joint
+  - RR_hip_joint
+  - RR_thigh_joint
+  - RR_calf_joint
+
+controls:
+  xbox_max_command: [1.0, 1.0, 1.0]
+  keyboard_command: [0.5, 0.5, 0.5]
+  config_command: [0.5, 0.0, 0.0]
+  joystick_deadzone: 0.1
+  planar_command_deadband: 0.2
+  xbox_buttons:
+    x_reset: 2
+    y_spring: 3
+    lb_jump: 4
+    rb_spring: 5
+
+profiles:
+  jump:
+    policy_path: "/home/sha-opt/My_unitree_go2_gym/logs/go2_jump/exported/policies/policy_1.pt"
+    init_base_pos: [3.7, -9.0, 0.42]
+    default_angles: [0.1, 0.8, -1.5, -0.1, 0.8, -1.5,
+                     0.1, 1.0, -1.5, -0.1, 1.0, -1.5]
+    kp: 20.0
+    kd: 0.5
+    torque_limit: 30.0
+    reset_height: 0.15
+    phase_period: 1.5
+
+  spring_jump:
+    policy_path: "/home/sha-opt/My_unitree_go2_gym/logs/go2_spring_jump/exported/policies/policy_1.pt"
+    init_base_pos: [3.7, -9.0, 0.39]
+    default_angles: [0.0, 0.8, -1.5, 0.0, 0.8, -1.5,
+                     0.0, 1.0, -1.5, 0.0, 1.0, -1.5]
+    kp: 20.0
+    kd: 0.5
+    torque_limit: 25.0
+    target_displacement: 0.8
+    preparation_steps: 50
+    episode_steps: 250
+    reset_height: 0.15
