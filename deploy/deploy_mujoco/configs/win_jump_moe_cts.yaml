@@ -1,0 +1,32 @@
+manifest_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_jump_moe_cts/exported/best/manifest.json"
+xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/scene_terrain.xml"
+simulation_dt: 0.0005
+control_decimation: 40
+duration_s: 20.0
+contact_threshold_n: 5.0
+fall_height_m: 0.16
+fall_tilt_rad: 1.0
+
+profiles:
+  walk_jump_walk:
+    - {time: 0.0, vx: 0.5, vy: 0.0, yaw: 0.0, body_mode: 0.0}
+    - {time: 2.0, vx: 0.5, vy: 0.0, yaw: 0.0, body_mode: -1.0}
+    - {time: 12.0, vx: 0.5, vy: 0.0, yaw: 0.0, body_mode: 0.0}
+  stand_jump_stand:
+    - {time: 0.0, vx: 0.0, vy: 0.0, yaw: 0.0, body_mode: 0.0}
+    - {time: 2.0, vx: -0.5, vy: 0.0, yaw: 0.0, body_mode: -1.0}
+    - {time: 12.0, vx: 0.0, vy: 0.0, yaw: 0.0, body_mode: 0.0}
+
+randomization:
+  friction: [0.0, 2.0]
+  restitution: [0.0, 0.5]
+  added_base_mass: [-1.0, 1.0]
+  link_mass_scale: [0.9, 1.1]
+  base_com: [-0.03, 0.03]
+  pd_scale: [0.9, 1.1]
+  motor_strength: [0.8, 1.2]
+  motor_zero_offset: [-0.035, 0.035]
+  action_delay_s: [0.0, 0.02]
+  push_interval_s: 4.0
+  push_linear: 0.4
+  push_angular: 0.6

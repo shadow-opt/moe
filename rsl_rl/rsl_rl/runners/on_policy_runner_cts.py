@@ -88,6 +88,8 @@ class OnPolicyRunnerCTS:
             **self.policy_cfg).to(self.device)
         alg_class = eval(self.cfg["algorithm_class_name"])
         self.alg: Union[CTS, MoENGCTS, MCPCTS, ACMoECTS, DualMoECTS, MoECTS] = alg_class(model, self.env.num_envs, history_length, device=self.device, **self.alg_cfg)
+        if hasattr(self.alg, "configure_jump_training"):
+            self.alg.configure_jump_training(self.env.dof_names)
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
         self.save_interval = self.cfg["save_interval"]
 
@@ -139,6 +141,8 @@ class OnPolicyRunnerCTS:
         # 这里先把 reset 后的第一帧 obs 压进 history，
         # 这样 student encoder 从训练一开始就拿到长度正确的窗口，而不是全零空壳。
         self.alg.model.train() # switch to train mode (for dropout for example)
+        if self.cfg.get("save_initial_checkpoint", False) and self.current_learning_iteration == 0:
+            self.save(os.path.join(self.log_dir, "model_0.pt"), 0, False)
 
         ep_infos = []
         teacher_rewbuffer = deque(maxlen=100)
@@ -193,6 +197,8 @@ class OnPolicyRunnerCTS:
                 else:
                     self.alg.compute_returns(privileged_obs, self.history.flatten(1))
             
+            if hasattr(self.alg, "current_iteration"):
+                self.alg.current_iteration = self.current_learning_iteration
             if self.cfg["algorithm_class_name"] in ["CTS", "MCPCTS"]:
                 mean_value_loss, mean_surrogate_loss, mean_entropy_loss, mean_latent_loss = self.alg.update()
             elif self.cfg["algorithm_class_name"] in ["MoECTS", "MoENGCTS", "ACMoECTS"]:
@@ -202,9 +208,19 @@ class OnPolicyRunnerCTS:
             stop = time.time()
             learn_time = stop - start
             self.current_learning_iteration += 1
+            jump_env_metrics = None
+            if hasattr(self.env, "consume_jump_metrics"):
+                jump_env_metrics = self.env.consume_jump_metrics()
             if self.log_dir is not None:
                 self.log(locals())
-            if it % self.save_interval == 0:
+            if self.cfg.get("exact_save_intervals", False):
+                if self.current_learning_iteration % self.save_interval == 0:
+                    self.save(
+                        os.path.join(self.log_dir, f"model_{self.current_learning_iteration}.pt"),
+                        self.current_learning_iteration,
+                        False,
+                    )
+            elif it % self.save_interval == 0:
                 self.save(os.path.join(self.log_dir, 'model_{}.pt'.format(it)), it, False)
             ep_infos.clear()
         
@@ -244,6 +260,15 @@ class OnPolicyRunnerCTS:
             self.writer.add_scalar('Loss/load_balance', locs['mean_load_balance_loss'], locs['it'])
         if 'mean_actor_load_balance_loss' in locs:
             self.writer.add_scalar('Loss/actor_load_balance', locs['mean_actor_load_balance_loss'], locs['it'])
+        if hasattr(self.alg, "last_update_metrics"):
+            for key, value in self.alg.last_update_metrics.items():
+                self.writer.add_scalar(f"Jump/{key}", value, locs['it'])
+        if locs.get("jump_env_metrics") is not None:
+            for key, value in locs["jump_env_metrics"].items():
+                if isinstance(value, torch.Tensor) and value.numel() == 1:
+                    value = value.item()
+                if isinstance(value, (float, int)):
+                    self.writer.add_scalar(f"JumpEnv/{key}", value, locs['it'])
         self.writer.add_scalar('Loss/learning_rate', self.alg.learning_rate, locs['it'])
         if 'mcp' not in self.cfg["algorithm_class_name"].lower():
             self.writer.add_scalar('Policy/mean_noise_std', mean_std.item(), locs['it'])
@@ -300,6 +325,10 @@ class OnPolicyRunnerCTS:
             'optimizer2_state_dict': self.alg.optimizer2.state_dict(),
             'iter': self.current_learning_iteration,
             'infos': infos,
+            'reference_policy_state_dict': self.alg.reference_state_dict()
+                if hasattr(self.alg, "reference_state_dict") else None,
+            'env_training_state': self.env.get_training_state()
+                if hasattr(self.env, "get_training_state") else None,
             }, path)
         self.update_robogauge(it, last_model)
     
@@ -355,6 +384,10 @@ class OnPolicyRunnerCTS:
             self.alg.optimizer1.load_state_dict(loaded_dict['optimizer1_state_dict'])
             self.alg.optimizer2.load_state_dict(loaded_dict['optimizer2_state_dict'])
         self.current_learning_iteration = loaded_dict['iter']
+        if hasattr(self.alg, "load_reference_state_dict"):
+            self.alg.load_reference_state_dict(loaded_dict.get("reference_policy_state_dict"))
+        if hasattr(self.env, "load_training_state"):
+            self.env.load_training_state(loaded_dict.get("env_training_state"))
         return loaded_dict['infos']
 
     def load_weights(self, path):
@@ -363,6 +396,8 @@ class OnPolicyRunnerCTS:
         if "model_state_dict" not in loaded_dict:
             raise KeyError(f"Checkpoint has no model_state_dict: {path}")
         self.alg.model.load_state_dict(loaded_dict["model_state_dict"], strict=True)
+        if hasattr(self.alg, "set_frozen_reference"):
+            self.alg.set_frozen_reference()
         self.current_learning_iteration = 0
         return loaded_dict.get("infos")
 

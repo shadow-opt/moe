@@ -22,6 +22,7 @@ from legged_gym.utils.math import wrap_to_pi, quat_apply_yaw
 from legged_gym.utils.isaacgym_utils import get_euler_xyz as get_euler_xyz_in_tensor
 from legged_gym.utils.isaacgym_utils import sample_disjoint_intervals, sample_single_interval
 from legged_gym.utils.helpers import class_to_dict
+from legged_gym.utils.torque_utils import apply_motor_strength_and_limit
 from .legged_robot_config import LeggedRobotCfg
 from legged_gym.utils.terrain import Terrain
 
@@ -106,6 +107,11 @@ class LeggedRobot(BaseTask):
             # action delay 的实现方式：对每个 env 随机挑一个 decimation 起始点，
             # 在此之前继续沿用 last_actions，模拟控制链路延迟。
             actions_start_decimation = torch.randint(0, self.cfg.control.decimation+1, (self.num_envs, 1), device=self.device)
+        self.torque_clip_mask.zero_()
+        self.torque_clip_count_step.zero_()
+        if self.collect_substep_contact_metrics:
+            self.substep_foot_force_max.zero_()
+            self.substep_foot_normal_impulse.zero_()
         for i in range(self.cfg.control.decimation):
             if self.cfg.domain_rand.randomize_action_delay:
                 use_actions = (i >= actions_start_decimation).float()
@@ -115,17 +121,37 @@ class LeggedRobot(BaseTask):
             # action -> torque 是环境最核心的接口：
             # policy 并不直接接触真实电机力矩，而是先经 `_compute_torques()` 解释。
             self.torques = self._compute_torques(input_actions).view(self.torques.shape)
-            if self.cfg.domain_rand.randomize_motor_strength:
-                self.torques *= self.motor_strengths
+            self.pre_strength_torques[:] = self.torques
+            strengths = self.motor_strengths if self.cfg.domain_rand.randomize_motor_strength else 1.0
+            randomized, applied, clipped_this_substep = apply_motor_strength_and_limit(
+                self.torques,
+                strengths,
+                self.torque_limits,
+                getattr(self.cfg.domain_rand, "hard_torque_limit_after_randomization", False),
+            )
+            self.randomized_torques[:] = randomized
+            self.torque_clip_mask |= clipped_this_substep
+            self.torque_clip_count_step += clipped_this_substep.long()
+            self.torques = applied
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
+            if self.collect_substep_contact_metrics:
+                if self.device == 'cpu':
+                    self.gym.fetch_results(self.sim, True)
+                self.gym.refresh_net_contact_force_tensor(self.sim)
+                foot_forces = self.contact_forces[:, self.feet_indices, :]
+                self.substep_foot_force_max[:] = torch.maximum(
+                    self.substep_foot_force_max,
+                    torch.norm(foot_forces, dim=-1),
+                )
+                self.substep_foot_normal_impulse += torch.clamp(foot_forces[..., 2], min=0.0) * self.sim_params.dt
             if self.cfg.env.test:
                 elapsed_time = self.gym.get_elapsed_time(self.sim)
                 sim_time = self.gym.get_sim_time(self.sim)
                 if sim_time-elapsed_time>0:
                     time.sleep(sim_time-elapsed_time)
             
-            if self.device == 'cpu':
+            if self.device == 'cpu' and not self.collect_substep_contact_metrics:
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
         self.post_physics_step()
@@ -1077,6 +1103,17 @@ class LeggedRobot(BaseTask):
         # `actions` / `last_actions` / `last_dof_vel` 这类张量通常用于 reward 中的平滑项。
         # --- 动作与执行器相关 buffer ---
         self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
+        self.pre_strength_torques = torch.zeros_like(self.torques)
+        self.randomized_torques = torch.zeros_like(self.torques)
+        self.torque_clip_mask = torch.zeros_like(self.torques, dtype=torch.bool)
+        self.torque_clip_count_step = torch.zeros_like(self.torques, dtype=torch.long)
+        self.collect_substep_contact_metrics = bool(
+            getattr(self.cfg.env, "collect_substep_contact_metrics", False)
+        )
+        self.substep_foot_force_max = torch.zeros(
+            self.num_envs, len(self.feet_indices), dtype=torch.float, device=self.device
+        )
+        self.substep_foot_normal_impulse = torch.zeros_like(self.substep_foot_force_max)
         # `torques`: 最终送入 simulator 的电机力矩命令。
         # 它是“动作解释器” `_compute_torques()` 的输出，也是若干能耗/力矩惩罚 reward 的直接输入。
         self.p_gains = torch.zeros(self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)

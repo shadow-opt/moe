@@ -142,6 +142,13 @@ def get_args():
         {"name": "--seed", "type": int, "help": "Random seed. Overrides config file if provided."},
         {"name": "--max_iterations", "type": int, "help": "Maximum number of training iterations. Overrides config file if provided."},
         {"name": "--eval_steps", "type": int, "default": 10000, "help": "Number of policy steps for batch evaluation."},
+        {"name": "--checkpoint_path", "type": str, "help": "Exact checkpoint path for evaluation."},
+        {"name": "--checkpoint_dir", "type": str, "help": "Directory containing model_*.pt checkpoints."},
+        {"name": "--eval_output_dir", "type": str, "help": "Directory for jump evaluation reports and exports."},
+        {"name": "--baseline_checkpoint", "type": str, "help": "Frozen locomotion checkpoint used for degradation metrics."},
+        {"name": "--eval_seeds", "type": str, "default": "0,1,2", "help": "Comma-separated deterministic evaluation seeds."},
+        {"name": "--jump_eval_steps", "type": int, "default": 1000, "help": "Policy steps per Z2 jump evaluation seed."},
+        {"name": "--export_best", "action": "store_true", "default": False, "help": "Export the best passing jump checkpoint."},
         {"name": "--eval_wall_height", "type": float, "default": 0.30, "help": "Fixed thin-wall height for close-climb evaluation."},
         {"name": "--eval_mode", "type": str, "default": "wall", "choices": ["wall", "flat"], "help": "Close-climb evaluation terrain mode."},
 
