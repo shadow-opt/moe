@@ -23,7 +23,12 @@ from legged_gym.envs.nocv.win_close_climb_cfg import (
     WINCloseClimbEvalCfgMoECTS,
 )
 from legged_gym.envs.nocv.win_jump_env import WINJumpRobot
-from legged_gym.envs.nocv.win_jump_cfg import WINJumpCfg, WINJumpCfgMoECTS
+from legged_gym.envs.nocv.win_jump_cfg import (
+    WINJumpCfg,
+    WINJumpCfgMoECTS,
+    WINJumpCyclicCfg,
+    WINJumpCyclicCfgMoECTS,
+)
 from .base.legged_robot import LeggedRobot
 
 from legged_gym.utils.task_registry import task_registry
@@ -59,6 +64,12 @@ task_registry.register("win_go2_stair", WINRobot, WINGo2StairCfg(), WINGo2StairC
 task_registry.register("win_low_speed", WINRobot, WINLowSpeedCfg(), WINLowSpeedCfgMoECTS())
 task_registry.register("win_flat_slow", WINRobot, WINFlatSlowCfg(), WINFlatSlowCfgMoECTS())
 task_registry.register("win_jump_moe_cts", WINJumpRobot, WINJumpCfg(), WINJumpCfgMoECTS())
+task_registry.register(
+    "win_jump_cyclic_moe_cts",
+    WINJumpRobot,
+    WINJumpCyclicCfg(),
+    WINJumpCyclicCfgMoECTS(),
+)
 task_registry.register(
     "win_flat_slow_world_feet_reg",
     WINRobot,

@@ -31,6 +31,7 @@ class WINJumpCfg(WINFlatSlowCfg):
         jump_enable_threshold = 0.30
         jump_disable_threshold = 0.20
         jump_cycle_time = 1.50
+        cyclic_jump_phase = False
         jump_prep_steps = 10
         jump_landing_contact_steps = 3
         jump_exit_timeout_s = 2.0
@@ -160,3 +161,14 @@ class WINJumpCfgMoECTS(WINFlatSlowCfgMoECTS):
         save_interval = 4000
         save_initial_checkpoint = True
         exact_save_intervals = True
+
+
+class WINJumpCyclicCfg(WINJumpCfg):
+    class commands(WINJumpCfg.commands):
+        cyclic_jump_phase = True
+
+
+class WINJumpCyclicCfgMoECTS(WINJumpCfgMoECTS):
+    class runner(WINJumpCfgMoECTS.runner):
+        run_name = "jump_posttrain_cyclic_phase"
+        experiment_name = "win_jump_cyclic_moe_cts"

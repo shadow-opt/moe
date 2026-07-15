@@ -44,6 +44,29 @@ def test_top_level_sampler_converges_to_60_30_10():
     torch.testing.assert_close(ratios, torch.tensor([0.3, 0.6, 0.1]), atol=0.005, rtol=0.0)
 
 
+def test_legacy_jump_stance_does_not_repeat_after_first_cycle():
+    phase = torch.tensor([0.0, 0.59, 0.6, 0.99, 1.0, 1.59])
+    stance = LOGIC.jump_stance_mask(phase, cyclic_jump_phase=False)
+    assert stance.tolist() == [True, True, False, False, False, False]
+
+
+def test_cyclic_jump_stance_repeats_at_each_cycle_boundary():
+    phase = torch.tensor([0.0, 0.59, 0.6, 0.99, 1.0, 1.59])
+    stance = LOGIC.jump_stance_mask(phase, cyclic_jump_phase=True)
+    assert stance.tolist() == [True, True, False, False, True, True]
+
+
+def test_jump_task_metadata_distinguishes_ab_variants():
+    assert LOGIC.jump_task_metadata("win_jump_moe_cts", False) == {
+        "task": "win_jump_moe_cts",
+        "jump_phase_semantics": "legacy",
+    }
+    assert LOGIC.jump_task_metadata("win_jump_cyclic_moe_cts", True) == {
+        "task": "win_jump_cyclic_moe_cts",
+        "jump_phase_semantics": "cyclic",
+    }
+
+
 def test_motor_strength_is_clipped_after_randomization():
     torques = torch.tensor([[30.0, -30.0, 10.0]])
     strengths = torch.tensor([[1.2, 1.2, 0.8]])

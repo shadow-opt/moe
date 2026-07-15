@@ -3,7 +3,10 @@ import math
 import torch
 
 from legged_gym.envs.nocv.win_env import WINRobot
-from legged_gym.envs.nocv.win_jump_logic import classify_mode_draws
+from legged_gym.envs.nocv.win_jump_logic import (
+    classify_mode_draws,
+    jump_stance_mask,
+)
 
 
 MODE_WALK = 0
@@ -405,8 +408,10 @@ class WINJumpRobot(WINRobot):
         return self.jump_phase_steps.float() * self.dt / self.cfg.commands.jump_cycle_time
 
     def _jump_stance_mask(self):
-        # Intentionally preserve the reference's unmodded phase comparison.
-        return self._jump_phase() < 0.6
+        return jump_stance_mask(
+            self._jump_phase(),
+            self.cfg.commands.cyclic_jump_phase,
+        )
 
     def _reward_jump_contact_pattern(self):
         contact = self.contact_forces[:, self.feet_indices, 2] > self.cfg.commands.jump_contact_threshold

@@ -12,6 +12,7 @@ import torch
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs import *
+from legged_gym.envs.nocv.win_jump_logic import jump_task_metadata
 from legged_gym.utils import get_args, task_registry
 from legged_gym.utils.exporter import export_policy_as_jit
 
@@ -20,6 +21,8 @@ DEFAULT_BASELINE = os.path.join(
     LEGGED_GYM_ROOT_DIR,
     "logs/win_flat_slow_moe_cts/Jul05_17-22-50_flat_slow/model_85000.pt",
 )
+
+SUPPORTED_TASKS = {"win_jump_moe_cts", "win_jump_cyclic_moe_cts"}
 
 
 def _command(vx=0.0, vy=0.0, yaw=0.0, body=0.0):
@@ -358,7 +361,7 @@ def _jit_parity(model, policy_path, device):
     return maxima
 
 
-def export_best(model, env, checkpoint_path, output_dir, evaluation):
+def export_best(model, env, checkpoint_path, output_dir, evaluation, task_name):
     os.makedirs(output_dir, exist_ok=True)
     policy_path = os.path.join(output_dir, "policy.pt")
     export_policy_as_jit(model, output_dir, filename="policy.pt")
@@ -371,9 +374,13 @@ def export_best(model, env, checkpoint_path, output_dir, evaluation):
         ).strip()
     except Exception:
         git_commit = "unknown"
+    metadata = jump_task_metadata(
+        task_name,
+        env.cfg.commands.cyclic_jump_phase,
+    )
     manifest = {
         "schema_version": 1,
-        "task": "win_jump_moe_cts",
+        **metadata,
         "git_commit": git_commit,
         "checkpoint_path": os.path.abspath(checkpoint_path),
         "checkpoint_sha256": _sha256(checkpoint_path),
@@ -422,12 +429,19 @@ def export_best(model, env, checkpoint_path, output_dir, evaluation):
 
 
 def evaluate(args):
-    if args.task != "win_jump_moe_cts":
-        raise ValueError("evaluate_z2_jump.py requires --task win_jump_moe_cts")
+    if args.task not in SUPPORTED_TASKS:
+        raise ValueError(
+            "evaluate_z2_jump.py requires --task win_jump_moe_cts or "
+            "win_jump_cyclic_moe_cts"
+        )
     env_cfg, train_cfg = task_registry.get_cfgs(args.task)
     num_envs = args.num_envs or 256
     _configure_eval_env(env_cfg, num_envs)
     env, _ = task_registry.make_env(args.task, args=args, env_cfg=env_cfg)
+    metadata = jump_task_metadata(
+        args.task,
+        env.cfg.commands.cyclic_jump_phase,
+    )
     args.resume = False
     args.warmstart_path = None
     runner, _ = task_registry.make_alg_runner(
@@ -474,6 +488,7 @@ def evaluate(args):
         )
         summary = _evaluate_gates(reports, baseline_reports)
         result = {
+            **metadata,
             "checkpoint": checkpoint_path,
             "iteration": _checkpoint_iteration(checkpoint_path),
             "seeds": seeds,
@@ -495,6 +510,7 @@ def evaluate(args):
         default=None,
     )
     index = {
+        **metadata,
         "baseline_checkpoint": baseline_path,
         "evaluated": [result["checkpoint"] for result in summaries],
         "best_checkpoint": best["checkpoint"] if best else None,
@@ -507,6 +523,7 @@ def evaluate(args):
             best["checkpoint"],
             os.path.join(output_dir, "best"),
             best["summary"],
+            args.task,
         )
     with open(os.path.join(output_dir, "index.json"), "w", encoding="utf-8") as handle:
         json.dump(index, handle, indent=2, sort_keys=True)
