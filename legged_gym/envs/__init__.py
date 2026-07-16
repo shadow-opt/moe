@@ -4,10 +4,11 @@ from legged_gym.envs.go2.go2_env import Go2Robot
 from legged_gym.envs.go2.go2_config import GO2Cfg, GO2CfgPPO, GO2CfgCTS, GO2CfgMoECTS, GO2CfgMoENGCTS, GO2CfgMCPCTS, GO2CfgACMoECTS, GO2CfgDualMoECTS
 from legged_gym.envs.nocv.nocv_env import NoCVRobot
 from legged_gym.envs.nocv.nocv_cfg import NOCVCfg, NOCVCfgMoECTS
-from legged_gym.envs.nocv.win_env import WINRobot
+from legged_gym.envs.nocv.win_env import WINRobot, WINStairVelGuardWorldRobot
 from legged_gym.envs.nocv.win_cfg import WINCfg
 from legged_gym.envs.nocv.win_cfg import WINCfgMoECTS, WINRobotLabCfg, WINRobotLabCfgMoECTS, WINRobotLabHeightCfg, WINRobotLabHeightCfgMoECTS, WINRobotLabAirCfg, WINRobotLabAirCfgMoECTS, WINLegbotCfg, WINLegbotCfgMoECTS, WINGo2Cfg, WINGo2CfgMoECTS, WINGo2StairCfg, WINGo2StairCfgMoECTS, WINLowSpeedCfg, WINLowSpeedCfgMoECTS, WINFlatSlowCfg, WINFlatSlowCfgMoECTS, WINGuardedCfg, WINGuardedCfgMoECTS, WINGuardedLongCfg, WINGuardedLongCfgMoECTS
 from legged_gym.envs.nocv.win_cfg import WINFlatSlowWorldFeetRegCfg, WINFlatSlowWorldFeetRegCfgMoECTS
+from legged_gym.envs.nocv.win_cfg import WINStairVelGuardWorldCfg, WINStairVelGuardWorldCfgMoECTS
 from legged_gym.envs.nocv.cts_cfg import NOCVCfgCTS, NCTSCfg
 from legged_gym.envs.nocv.win_cts_cfg import WINCfgCTS
 from legged_gym.envs.nocv.win_cts_cfg import WINCTS, WINCfgCTS, WINVanillaCTS
@@ -91,6 +92,12 @@ task_registry.register(
     WINRobot,
     WINFlatSlowWorldFeetRegCfg(),
     WINFlatSlowWorldFeetRegCfgMoECTS(),
+)
+task_registry.register(
+    "win_stair_vel_guard_world_moe_cts",
+    WINStairVelGuardWorldRobot,
+    WINStairVelGuardWorldCfg(),
+    WINStairVelGuardWorldCfgMoECTS(),
 )
 task_registry.register("win_guarded", WINRobot, WINGuardedCfg(), WINGuardedCfgMoECTS())
 task_registry.register("win_guard", WINRobot, WINGuardedCfg(), WINGuardedCfgMoECTS())

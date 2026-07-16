@@ -600,6 +600,80 @@ class WINFlatSlowWorldFeetRegCfgMoECTS(WINFlatSlowCfgMoECTS):
         experiment_name = 'win_flat_slow_world_feet_reg_moe_cts'
 
 
+class WINStairVelGuardWorldCfg(WINFlatSlowWorldFeetRegCfg):
+    """Jul14 flat-slow post-training focused on stairs and joint-speed limits."""
+
+    class terrain(WINFlatSlowWorldFeetRegCfg.terrain):
+        # [wave, slope, rough slope, stairs up, stairs down, obstacles, stones, gap, flat]
+        terrain_proportions = [0.10, 0.05, 0.05, 0.35, 0.15, 0.10, 0.0, 0.0, 0.20]
+
+    class commands(WINFlatSlowWorldFeetRegCfg.commands):
+        # A weight-only warm start resets the iteration, so pin the Jul14
+        # command curriculum at its terminal distribution.
+        dynamic_resample_commands = True
+        command_range_curriculum = []
+        zero_command_curriculum = {
+            'start_iter': 0,
+            'end_iter': 1,
+            'start_value': 0.07,
+            'end_value': 0.07,
+        }
+        full_stop_command_curriculum = {
+            'start_iter': 0,
+            'end_iter': 1,
+            'start_value': 0.03,
+            'end_value': 0.03,
+        }
+        stairs_up_forward_command_prob = 0.5
+        stairs_up_forward_lin_vel_x = [0.4, 0.9]
+
+        class ranges(WINFlatSlowWorldFeetRegCfg.commands.ranges):
+            lin_vel_x = [-2.0, 2.0]
+            lin_vel_y = [-1.0, 1.0]
+            ang_vel_yaw = [-1.7, 1.7]
+            heading = [-1.57, 1.57]
+
+    class rewards(WINFlatSlowWorldFeetRegCfg.rewards):
+        velocity_limit_barrier_curvature = 5.0
+        curriculum_rewards = [
+            {
+                'reward_name': 'dof_vel_limits',
+                'start_iter': 0,
+                'end_iter': 2000,
+                'start_value': 0.2,
+                'end_value': 1.0,
+            },
+        ]
+
+        class scales(WINFlatSlowWorldFeetRegCfg.rewards.scales):
+            # Freeze the Jul14 reward curricula at their terminal values.
+            lin_vel_z = 0.0
+            ang_vel_xy = -0.09
+            stand_still = -4.0
+            lateral_yaw_tracking_error = -1.5
+            hip_to_zero = -10.0
+            dof_vel_limits = -5.0
+
+
+class WINStairVelGuardWorldCfgMoECTS(WINFlatSlowWorldFeetRegCfgMoECTS):
+    class algorithm(WINFlatSlowWorldFeetRegCfgMoECTS.algorithm):
+        learning_rate = 3e-4
+        min_learning_rate = 3e-5
+        max_learning_rate = 1e-3
+        student_encoder_learning_rate = 1e-3
+        schedule = 'adaptive'
+        desired_kl = 0.01
+        walk_behavior_coef = 0.0
+
+    class runner(WINFlatSlowWorldFeetRegCfgMoECTS.runner):
+        run_name = 'stair_vel_guard_world'
+        experiment_name = 'win_stair_vel_guard_world_moe_cts'
+        max_iterations = 5000
+        save_interval = 1000
+        save_initial_checkpoint = True
+        exact_save_intervals = True
+
+
 class WINGuardedCfg(WINCfg):
     """WIN variant that keeps the original task distribution with stronger action and joint-limit guards."""
 

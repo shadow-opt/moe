@@ -1312,3 +1312,55 @@ class WINRobot(Go2Robot):
     #     cmd_dir = cmd_xy / torch.clamp(cmd_norm.unsqueeze(1), min=1e-6)
     #     progress_speed = torch.sum(self.base_lin_vel[:, :2] * cmd_dir, dim=1)
     #     return torch.relu(progress_speed) * move_cmd.float()
+
+
+class WINStairVelGuardWorldRobot(WINRobot):
+    """WIN post-training environment with stair sampling and a velocity barrier."""
+
+    def _resample_commands(self, env_ids):
+        super()._resample_commands(env_ids)
+        self._apply_stairs_up_forward_commands(env_ids)
+
+    def _apply_stairs_up_forward_commands(self, env_ids):
+        if len(env_ids) == 0 or not hasattr(self, "terrain_ids"):
+            return
+
+        probability = float(getattr(self.cfg.commands, "stairs_up_forward_command_prob", 0.0))
+        if probability <= 0.0:
+            return
+
+        stairs_up_ids = env_ids[self.terrain_ids[env_ids] == 3]
+        if len(stairs_up_ids) == 0:
+            return
+
+        # Preserve zero/full-stop and pure-yaw samples from the base sampler.
+        translating = self.commands[stairs_up_ids, :2].abs().amax(dim=1) > 1.0e-6
+        candidates = stairs_up_ids[translating]
+        if len(candidates) == 0:
+            return
+
+        # Stops remain untouched, so compensate among translating samples to
+        # keep the expected fraction over all stairs-up samples at the target.
+        eligible_fraction = len(candidates) / len(stairs_up_ids)
+        conditional_probability = min(probability / eligible_fraction, 1.0)
+        selected = candidates[
+            torch.rand(len(candidates), device=self.device) < conditional_probability
+        ]
+        if len(selected) == 0:
+            return
+
+        old_xy = self.commands[selected, :2].clone()
+        lower, upper = self.cfg.commands.stairs_up_forward_lin_vel_x
+        self.commands[selected, 0] = lower + (upper - lower) * torch.rand(
+            len(selected), device=self.device
+        )
+        self.commands[selected, 1:3] = 0.0
+        # WINRobot already accumulated the pre-override command at the end of
+        # its sampler, so account for only the delta here.
+        self.commands_xy_accumulation[selected] += self.commands[selected, :2] - old_xy
+
+    def _reward_dof_vel_limits(self):
+        utilization = torch.abs(self.dof_vel) / self.dof_vel_limits.clamp_min(1.0e-6)
+        excess = torch.relu(utilization - self.cfg.rewards.soft_dof_vel_limit)
+        curvature = float(getattr(self.cfg.rewards, "velocity_limit_barrier_curvature", 5.0))
+        return torch.sum(excess + curvature * torch.square(excess), dim=1)
