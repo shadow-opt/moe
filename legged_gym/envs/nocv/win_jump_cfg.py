@@ -221,8 +221,8 @@ class WINJumpRecoveryCfg(WINJumpCyclicCfg):
 
 class WINJumpRecoveryCfgMoECTS(WINJumpCyclicCfgMoECTS):
     class algorithm(WINJumpCyclicCfgMoECTS.algorithm):
-        learning_rate = 5.0e-5
-        max_learning_rate = 5.0e-5
+        learning_rate = 1.0e-4
+        max_learning_rate = 1.0e-4
         idle_jump_behavior_coef = 1.0
 
     class runner(WINJumpCyclicCfgMoECTS.runner):
