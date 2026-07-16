@@ -1,4 +1,4 @@
-policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_jump_moe_cts/exported/policies/policy.pt"
+policy_path: "{LEGGED_GYM_ROOT_DIR}/logs/win_jump_moe_cts/exported/Jul16_01-47-57_jump_posttrain_16000/policy.pt"
 xml_path: "{LEGGED_GYM_ROOT_DIR}/resources/robots/aaaaa_fixed/z2/urdf/scene_terrain.xml"
 
 simulation_duration: 60000000.0

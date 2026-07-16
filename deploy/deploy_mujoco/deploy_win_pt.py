@@ -227,6 +227,8 @@ class KeyboardCommandController:
             command_obs[:] = 0.0
         elif "y" in edge_keys and self.jump_control:
             toggle_jump_command(command_obs, self.jump_default_vx)
+            enabled = command_obs[3] < -0.5
+            print(f"\nJump mode requested: {'ON' if enabled else 'OFF'}", flush=True)
         elif "h" in edge_keys and not self.jump_control and len(command_obs) > 3:
             command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
         elif "c" in edge_keys and not self.jump_control and len(command_obs) > 4:
