@@ -395,6 +395,8 @@ class WINJumpRobot(WINRobot):
             elif name not in self._COMMON_REWARDS:
                 raw_reward *= walk_mask
             reward = raw_reward * self.reward_scales.get(name, 0.0)
+            if name in self.reward_curriculum_scales:
+                reward *= self.reward_curriculum_scales[name]
             self.rew_buf += reward
             self.episode_sums[name] += reward
         if self.cfg.rewards.only_positive_rewards:

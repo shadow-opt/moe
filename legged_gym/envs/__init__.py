@@ -28,6 +28,8 @@ from legged_gym.envs.nocv.win_jump_cfg import (
     WINJumpCfgMoECTS,
     WINJumpCyclicCfg,
     WINJumpCyclicCfgMoECTS,
+    WINJumpCyclicScratchCfg,
+    WINJumpCyclicScratchCfgMoECTS,
 )
 from .base.legged_robot import LeggedRobot
 
@@ -69,6 +71,12 @@ task_registry.register(
     WINJumpRobot,
     WINJumpCyclicCfg(),
     WINJumpCyclicCfgMoECTS(),
+)
+task_registry.register(
+    "win_jump_cyclic_scratch_moe_cts",
+    WINJumpRobot,
+    WINJumpCyclicScratchCfg(),
+    WINJumpCyclicScratchCfgMoECTS(),
 )
 task_registry.register(
     "win_flat_slow_world_feet_reg",

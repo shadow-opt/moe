@@ -1,3 +1,6 @@
+import copy
+
+from legged_gym.envs.go2.go2_config import GO2Cfg
 from legged_gym.envs.nocv.win_cfg import WINFlatSlowCfg, WINFlatSlowCfgMoECTS
 
 
@@ -172,3 +175,29 @@ class WINJumpCyclicCfgMoECTS(WINJumpCfgMoECTS):
     class runner(WINJumpCfgMoECTS.runner):
         run_name = "jump_posttrain_cyclic_phase"
         experiment_name = "win_jump_cyclic_moe_cts"
+
+
+class WINJumpCyclicScratchCfg(WINJumpCyclicCfg):
+    class commands(WINJumpCyclicCfg.commands):
+        low_height_command_prob = 0.0
+        low_height_terrain_ids = []
+
+    class rewards(WINJumpCyclicCfg.rewards):
+        curriculum_rewards = copy.deepcopy(GO2Cfg.rewards.curriculum_rewards)
+
+        class scales(WINJumpCyclicCfg.rewards.scales):
+            lin_vel_z = GO2Cfg.rewards.scales.lin_vel_z
+            correct_base_height = GO2Cfg.rewards.scales.correct_base_height
+
+
+class WINJumpCyclicScratchCfgMoECTS(WINJumpCyclicCfgMoECTS):
+    class algorithm(WINJumpCyclicCfgMoECTS.algorithm):
+        learning_rate = 1.0e-3
+        min_learning_rate = 1.0e-5
+        max_learning_rate = 1.0e-3
+        student_encoder_learning_rate = 1.0e-3
+        walk_behavior_coef = 0.0
+
+    class runner(WINJumpCyclicCfgMoECTS.runner):
+        run_name = "jump_scratch_cyclic_phase"
+        experiment_name = "win_jump_cyclic_scratch_moe_cts"
