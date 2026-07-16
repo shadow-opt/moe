@@ -4,6 +4,7 @@ PATH_PARENT = Path(__file__).parent
 sys.path.append(str(PATH_PARENT))
 from utils import MujocoRenderUtils
 from joint_limit_monitor import JointLimitMonitor, prepare_velocity_limits
+from win_jump_command import JumpCommandFSM
 
 import os
 import time
@@ -17,7 +18,6 @@ import yaml
 import os
 import imageio
 from argparse import ArgumentParser
-import pygame
 from matplotlib import pyplot as plt
 
 def get_gravity_orientation(quaternion):
@@ -111,8 +111,64 @@ def apply_climb_command(command_obs):
     return command_obs
 
 
+def toggle_jump_command(command_obs, default_vx=0.5):
+    """Toggle the 6-D WIN command between walk and jump requests."""
+    if len(command_obs) != 6:
+        raise ValueError("Jump control requires a 6-D command")
+    if command_obs[3] < -0.5:
+        command_obs[3:] = 0.0
+    else:
+        if abs(command_obs[0]) < 0.3:
+            command_obs[0] = float(default_vx)
+        command_obs[1:3] = 0.0
+        command_obs[3] = -1.0
+        command_obs[4:6] = 0.0
+    return command_obs
+
+
+def foot_contact_states(model, data, foot_geom_ids, threshold_n=5.0):
+    contacts = np.zeros(len(foot_geom_ids), dtype=bool)
+    geom_to_foot = {geom_id: index for index, geom_id in enumerate(foot_geom_ids)}
+    force = np.zeros(6, dtype=np.float64)
+    for contact_index in range(data.ncon):
+        contact = data.contact[contact_index]
+        foot_index = geom_to_foot.get(contact.geom1)
+        if foot_index is None:
+            foot_index = geom_to_foot.get(contact.geom2)
+        if foot_index is None:
+            continue
+        mujoco.mj_contactForce(model, data, contact_index, force)
+        contacts[foot_index] |= abs(force[0]) > threshold_n
+    return contacts
+
+
+class JumpCommandManager:
+    def __init__(self, policy_dt, config):
+        self.default_vx = float(config.get("default_vx", 0.5))
+        self.fsm = JumpCommandFSM(
+            policy_dt=policy_dt,
+            cycle_time=float(config.get("cycle_time", 1.5)),
+            prep_steps=int(config.get("prep_steps", 10)),
+            landing_steps=int(config.get("landing_steps", 3)),
+            exit_timeout_s=float(config.get("exit_timeout_s", 2.0)),
+        )
+        self.last_request = None
+
+    def update(self, requested_command, foot_contacts):
+        request = np.asarray(requested_command[:4], dtype=np.float32).copy()
+        if request[3] < -0.5:
+            if abs(request[0]) < 0.3:
+                request[0] = self.default_vx
+            request[1:3] = 0.0
+            request[3] = -1.0
+        if self.last_request is None or not np.array_equal(request, self.last_request):
+            self.fsm.request(*request)
+            self.last_request = request
+        return self.fsm.step(foot_contacts)
+
+
 class KeyboardCommandController:
-    def __init__(self, max_cmd):
+    def __init__(self, max_cmd, jump_control=False, jump_default_vx=0.5):
         try:
             from pynput import keyboard as pynput_keyboard
         except ImportError as exc:
@@ -121,6 +177,8 @@ class KeyboardCommandController:
             ) from exc
 
         self.max_cmd = np.asarray(max_cmd, dtype=np.float32)
+        self.jump_control = bool(jump_control)
+        self.jump_default_vx = float(jump_default_vx)
         self.keys = set()
         self.edge_keys = []
         self.lock = threading.Lock()
@@ -148,7 +206,7 @@ class KeyboardCommandController:
         if key_name is None:
             return
         with self.lock:
-            if key_name not in self.keys and key_name in ("h", "c", "r"):
+            if key_name not in self.keys and key_name in ("h", "c", "r", "y"):
                 self.edge_keys.append(key_name)
             self.keys.add(key_name)
 
@@ -167,22 +225,32 @@ class KeyboardCommandController:
 
         if "r" in edge_keys:
             command_obs[:] = 0.0
-        elif "h" in edge_keys and len(command_obs) > 3:
+        elif "y" in edge_keys and self.jump_control:
+            toggle_jump_command(command_obs, self.jump_default_vx)
+        elif "h" in edge_keys and not self.jump_control and len(command_obs) > 3:
             command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
-        elif "c" in edge_keys and len(command_obs) > 4:
+        elif "c" in edge_keys and not self.jump_control and len(command_obs) > 4:
             command_obs[4] = 0.0 if command_obs[4] > 0.5 else 1.0
 
         if "space" in keys:
-            command_obs[:3] = 0.0
+            command_obs[:] = 0.0
         else:
             vx_axis = float(("w" in keys or "up" in keys) - ("s" in keys or "down" in keys))
             vy_axis = float(("a" in keys or "left" in keys) - ("d" in keys or "right" in keys))
             wz_axis = float(("q" in keys) - ("e" in keys))
-            command_obs[0] = vx_axis * self.max_cmd[0]
-            command_obs[1] = vy_axis * self.max_cmd[1]
-            command_obs[2] = wz_axis * self.max_cmd[2]
+            if self.jump_control and command_obs[3] < -0.5:
+                if vx_axis:
+                    command_obs[0] = vx_axis * self.max_cmd[0]
+                elif abs(command_obs[0]) < 0.3:
+                    command_obs[0] = self.jump_default_vx
+                command_obs[1:3] = 0.0
+            else:
+                command_obs[0] = vx_axis * self.max_cmd[0]
+                command_obs[1] = vy_axis * self.max_cmd[1]
+                command_obs[2] = wz_axis * self.max_cmd[2]
 
-        apply_climb_command(command_obs)
+        if not self.jump_control:
+            apply_climb_command(command_obs)
         return command_obs
 
     def stop(self):
@@ -214,6 +282,12 @@ if __name__ == "__main__":
     button_state = {}
     keyboard_controller = None
     if control_mode == "xbox":
+        try:
+            import pygame
+        except ImportError as exc:
+            raise ImportError(
+                "Xbox control requires pygame. Use --control keyboard or install pygame."
+            ) from exc
         pygame.init()
         pygame.joystick.init()
         if pygame.joystick.get_count() > 0:
@@ -261,6 +335,8 @@ if __name__ == "__main__":
         viewer_camera_name = config.get("viewer_camera_name", "chase_cam")
 
         cmd = np.array(config["cmd_init"], dtype=np.float32)
+        jump_control_config = config.get("jump_control", {})
+        jump_control_enabled = bool(jump_control_config.get("enabled", False))
         init_base_pos = np.array(config.get("init_base_pos", [0.0, 0.0, 0.42]), dtype=np.float32)
         init_base_quat = np.array(config.get("init_base_quat", [1.0, 0.0, 0.0, 0.0]), dtype=np.float32)
 
@@ -287,6 +363,10 @@ if __name__ == "__main__":
     expected_num_obs = 3 + 3 + len(cmd) + 3 * num_actions
     if num_obs != expected_num_obs:
         raise ValueError(f"num_obs mismatch: config={num_obs}, expected={expected_num_obs}")
+    if jump_control_enabled and len(cmd) != 6:
+        raise ValueError("jump_control requires 6-D cmd_init and cmd_scale")
+    if control_mode == "keyboard" and jump_control_enabled:
+        print("Jump control enabled: Y toggles jump mode; Space exits jump and stops.")
 
     video_save_dir = str(PATH_PARENT / "videos")
     os.makedirs(video_save_dir, exist_ok=True)
@@ -380,6 +460,28 @@ if __name__ == "__main__":
             print(warning)
     print(limit_monitor.startup_summary())
 
+    jump_manager = None
+    foot_geom_ids = None
+    operator_cmd = cmd.copy()
+    if jump_control_enabled:
+        jump_manager = JumpCommandManager(
+            simulation_dt * control_decimation,
+            jump_control_config,
+        )
+        foot_geom_names = jump_control_config.get(
+            "foot_geom_names",
+            ["FL_foot", "RL_foot", "FR_foot", "RR_foot"],
+        )
+        foot_geom_ids = [
+            mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, name)
+            for name in foot_geom_names
+        ]
+        missing_foot_geoms = [
+            name for name, geom_id in zip(foot_geom_names, foot_geom_ids) if geom_id < 0
+        ]
+        if missing_foot_geoms:
+            raise ValueError(f"Jump foot geoms not found in XML: {missing_foot_geoms}")
+
     init_base_quat_norm = np.linalg.norm(init_base_quat)
     if init_base_quat_norm <= 0.0:
         raise ValueError(f"init_base_quat must be non-zero, got {init_base_quat}")
@@ -431,7 +533,11 @@ if __name__ == "__main__":
         all_latents = []
 
     if control_mode == "keyboard":
-        keyboard_controller = KeyboardCommandController(max_cmd)
+        keyboard_controller = KeyboardCommandController(
+            max_cmd,
+            jump_control=jump_control_enabled,
+            jump_default_vx=float(jump_control_config.get("default_vx", 0.5)),
+        )
 
     with mujoco.viewer.launch_passive(m, d) as viewer:
         if viewer_camera_mode.lower() == "fixed":
@@ -462,13 +568,26 @@ if __name__ == "__main__":
 
             if control_mode == "xbox" and use_joystick and counter % control_decimation == 0:
                 # cmd = get_xbox_command(joystick, max_cmd)
-                cmd = update_velocity_command_from_xbox(cmd, joystick, max_cmd, button_state)
+                operator_cmd = update_velocity_command_from_xbox(operator_cmd, joystick, max_cmd, button_state)
+                cmd = operator_cmd
                 show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
                 print(show_str, end='\r')
             elif control_mode == "keyboard" and counter % control_decimation == 0:
-                cmd = keyboard_controller.update(cmd)
+                operator_cmd = keyboard_controller.update(operator_cmd)
+                cmd = operator_cmd
                 show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
                 print(show_str, end='\r')
+
+            if jump_manager is not None and counter % control_decimation == 0:
+                contacts = foot_contact_states(
+                    m,
+                    d,
+                    foot_geom_ids,
+                    float(jump_control_config.get("contact_threshold_n", 5.0)),
+                )
+                cmd = jump_manager.update(operator_cmd, contacts)
+                if jump_manager.fsm.timed_out:
+                    print("\nJump exit timed out before a complete landing.", flush=True)
 
             tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
             d.ctrl[:] = tau[idx_ctrl_from_qpos]
