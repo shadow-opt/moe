@@ -32,7 +32,6 @@ cmd_init: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 jump_control:
   enabled: true
-  default_vx: 0.5
   cycle_time: 1.5
   prep_steps: 10
   landing_steps: 3

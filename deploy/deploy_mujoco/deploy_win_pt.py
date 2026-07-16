@@ -68,7 +68,13 @@ def get_xbox_command(joystick, max_cmd):
     return np.array([cmd_x, cmd_y, cmd_yaw], dtype=np.float32)
 
 
-def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_state):
+def update_velocity_command_from_xbox(
+    command_obs,
+    joystick,
+    max_cmd,
+    button_state,
+    jump_control=False,
+):
     """Update [vx, vy, yaw, height, climb, wall_height] from an Xbox controller."""
     pygame.event.pump()
     dead_zone = 0.1
@@ -84,19 +90,30 @@ def update_velocity_command_from_xbox(command_obs, joystick, max_cmd, button_sta
         command_obs[1] = -lx * max_cmd[1]
         command_obs[2] = -rx * max_cmd[2]
 
-        # A 键 (button 0) 切换低高度模式
-        a_pressed = joystick.get_button(0)
-        if a_pressed and not button_state.get("a", False):
-            command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
-        button_state["a"] = a_pressed
+        if jump_control:
+            y_pressed = joystick.get_button(3)
+            if y_pressed and not button_state.get("y", False):
+                toggle_jump_command(command_obs)
+                enabled = command_obs[3] < -0.5
+                print(f"\nJump mode requested: {'ON' if enabled else 'OFF'}", flush=True)
+            button_state["y"] = y_pressed
+            if command_obs[3] < -0.5:
+                command_obs[1:3] = 0.0
+        else:
+            # A 键 (button 0) 切换低高度模式
+            a_pressed = joystick.get_button(0)
+            if a_pressed and not button_state.get("a", False):
+                command_obs[3] = 0.0 if command_obs[3] > 0.5 else 1.5
+            button_state["a"] = a_pressed
 
-        b_pressed = joystick.get_button(1)
-        if b_pressed and not button_state.get("b", False):
-            command_obs[4] = 0.0 if command_obs[4] > 0.5 else 1.0
-        button_state["b"] = b_pressed
+            b_pressed = joystick.get_button(1)
+            if b_pressed and not button_state.get("b", False):
+                command_obs[4] = 0.0 if command_obs[4] > 0.5 else 1.0
+            button_state["b"] = b_pressed
     else:
         command_obs[:3] = 0.0
-    apply_climb_command(command_obs)
+    if not jump_control:
+        apply_climb_command(command_obs)
     return command_obs
 
 
@@ -111,15 +128,13 @@ def apply_climb_command(command_obs):
     return command_obs
 
 
-def toggle_jump_command(command_obs, default_vx=0.5):
+def toggle_jump_command(command_obs):
     """Toggle the 6-D WIN command between walk and jump requests."""
     if len(command_obs) != 6:
         raise ValueError("Jump control requires a 6-D command")
     if command_obs[3] < -0.5:
         command_obs[3:] = 0.0
     else:
-        if abs(command_obs[0]) < 0.3:
-            command_obs[0] = float(default_vx)
         command_obs[1:3] = 0.0
         command_obs[3] = -1.0
         command_obs[4:6] = 0.0
@@ -144,7 +159,6 @@ def foot_contact_states(model, data, foot_geom_ids, threshold_n=5.0):
 
 class JumpCommandManager:
     def __init__(self, policy_dt, config):
-        self.default_vx = float(config.get("default_vx", 0.5))
         self.fsm = JumpCommandFSM(
             policy_dt=policy_dt,
             cycle_time=float(config.get("cycle_time", 1.5)),
@@ -157,8 +171,6 @@ class JumpCommandManager:
     def update(self, requested_command, foot_contacts):
         request = np.asarray(requested_command[:4], dtype=np.float32).copy()
         if request[3] < -0.5:
-            if abs(request[0]) < 0.3:
-                request[0] = self.default_vx
             request[1:3] = 0.0
             request[3] = -1.0
         if self.last_request is None or not np.array_equal(request, self.last_request):
@@ -168,7 +180,7 @@ class JumpCommandManager:
 
 
 class KeyboardCommandController:
-    def __init__(self, max_cmd, jump_control=False, jump_default_vx=0.5):
+    def __init__(self, max_cmd, jump_control=False):
         try:
             from pynput import keyboard as pynput_keyboard
         except ImportError as exc:
@@ -178,7 +190,6 @@ class KeyboardCommandController:
 
         self.max_cmd = np.asarray(max_cmd, dtype=np.float32)
         self.jump_control = bool(jump_control)
-        self.jump_default_vx = float(jump_default_vx)
         self.keys = set()
         self.edge_keys = []
         self.lock = threading.Lock()
@@ -226,7 +237,7 @@ class KeyboardCommandController:
         if "r" in edge_keys:
             command_obs[:] = 0.0
         elif "y" in edge_keys and self.jump_control:
-            toggle_jump_command(command_obs, self.jump_default_vx)
+            toggle_jump_command(command_obs)
             enabled = command_obs[3] < -0.5
             print(f"\nJump mode requested: {'ON' if enabled else 'OFF'}", flush=True)
         elif "h" in edge_keys and not self.jump_control and len(command_obs) > 3:
@@ -243,8 +254,6 @@ class KeyboardCommandController:
             if self.jump_control and command_obs[3] < -0.5:
                 if vx_axis:
                     command_obs[0] = vx_axis * self.max_cmd[0]
-                elif abs(command_obs[0]) < 0.3:
-                    command_obs[0] = self.jump_default_vx
                 command_obs[1:3] = 0.0
             else:
                 command_obs[0] = vx_axis * self.max_cmd[0]
@@ -538,7 +547,6 @@ if __name__ == "__main__":
         keyboard_controller = KeyboardCommandController(
             max_cmd,
             jump_control=jump_control_enabled,
-            jump_default_vx=float(jump_control_config.get("default_vx", 0.5)),
         )
 
     with mujoco.viewer.launch_passive(m, d) as viewer:
@@ -570,7 +578,13 @@ if __name__ == "__main__":
 
             if control_mode == "xbox" and use_joystick and counter % control_decimation == 0:
                 # cmd = get_xbox_command(joystick, max_cmd)
-                operator_cmd = update_velocity_command_from_xbox(operator_cmd, joystick, max_cmd, button_state)
+                operator_cmd = update_velocity_command_from_xbox(
+                    operator_cmd,
+                    joystick,
+                    max_cmd,
+                    button_state,
+                    jump_control=jump_control_enabled,
+                )
                 cmd = operator_cmd
                 show_str += f"Cmd: Vx={cmd[0]:.2f}, Vy={cmd[1]:.2f}, Wz={cmd[2]:.2f}"
                 print(show_str, end='\r')
