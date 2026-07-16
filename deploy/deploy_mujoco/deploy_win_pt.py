@@ -4,7 +4,6 @@ PATH_PARENT = Path(__file__).parent
 sys.path.append(str(PATH_PARENT))
 from utils import MujocoRenderUtils
 from joint_limit_monitor import JointLimitMonitor, prepare_velocity_limits
-from win_jump_command import JumpCommandFSM
 
 import os
 import time
@@ -141,42 +140,45 @@ def toggle_jump_command(command_obs):
     return command_obs
 
 
-def foot_contact_states(model, data, foot_geom_ids, threshold_n=5.0):
-    contacts = np.zeros(len(foot_geom_ids), dtype=bool)
-    geom_to_foot = {geom_id: index for index, geom_id in enumerate(foot_geom_ids)}
-    force = np.zeros(6, dtype=np.float64)
-    for contact_index in range(data.ncon):
-        contact = data.contact[contact_index]
-        foot_index = geom_to_foot.get(contact.geom1)
-        if foot_index is None:
-            foot_index = geom_to_foot.get(contact.geom2)
-        if foot_index is None:
-            continue
-        mujoco.mj_contactForce(model, data, contact_index, force)
-        contacts[foot_index] |= abs(force[0]) > threshold_n
-    return contacts
-
-
 class JumpCommandManager:
     def __init__(self, policy_dt, config):
-        self.fsm = JumpCommandFSM(
-            policy_dt=policy_dt,
-            cycle_time=float(config.get("cycle_time", 1.5)),
-            prep_steps=int(config.get("prep_steps", 10)),
-            landing_steps=int(config.get("landing_steps", 3)),
-            exit_timeout_s=float(config.get("exit_timeout_s", 2.0)),
-        )
-        self.last_request = None
+        self.policy_dt = float(policy_dt)
+        self.cycle_time = float(config.get("cycle_time", 1.5))
+        self.phase_steps = -1
+        self.jump_active = False
+        self.motion_enabled = False
 
-    def update(self, requested_command, foot_contacts):
+    def update(self, requested_command):
         request = np.asarray(requested_command[:4], dtype=np.float32).copy()
-        if request[3] < -0.5:
-            request[1:3] = 0.0
-            request[3] = -1.0
-        if self.last_request is None or not np.array_equal(request, self.last_request):
-            self.fsm.request(*request)
-            self.last_request = request
-        return self.fsm.step(foot_contacts)
+        jump_requested = request[3] < -0.5
+        if not jump_requested:
+            self.phase_steps = -1
+            self.jump_active = False
+            self.motion_enabled = False
+            command = np.zeros(6, dtype=np.float32)
+            command[:4] = request
+            return command
+
+        if not self.jump_active:
+            self.phase_steps = -1
+            self.jump_active = True
+        request[1:3] = 0.0
+        request[3] = -1.0
+        speed = abs(float(request[0]))
+        if speed >= 0.3:
+            self.motion_enabled = True
+        elif speed < 0.2:
+            self.motion_enabled = False
+        if self.motion_enabled:
+            self.phase_steps += 1
+            phase = self.phase_steps * self.policy_dt / self.cycle_time
+            phase_sin = np.sin(2.0 * np.pi * phase)
+            phase_cos = np.cos(2.0 * np.pi * phase)
+        else:
+            self.phase_steps = -1
+            phase_sin = 0.0
+            phase_cos = 0.0
+        return np.asarray([*request, phase_sin, phase_cos], dtype=np.float32)
 
 
 class KeyboardCommandController:
@@ -472,26 +474,12 @@ if __name__ == "__main__":
     print(limit_monitor.startup_summary())
 
     jump_manager = None
-    foot_geom_ids = None
     operator_cmd = cmd.copy()
     if jump_control_enabled:
         jump_manager = JumpCommandManager(
             simulation_dt * control_decimation,
             jump_control_config,
         )
-        foot_geom_names = jump_control_config.get(
-            "foot_geom_names",
-            ["FL_foot", "RL_foot", "FR_foot", "RR_foot"],
-        )
-        foot_geom_ids = [
-            mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, name)
-            for name in foot_geom_names
-        ]
-        missing_foot_geoms = [
-            name for name, geom_id in zip(foot_geom_names, foot_geom_ids) if geom_id < 0
-        ]
-        if missing_foot_geoms:
-            raise ValueError(f"Jump foot geoms not found in XML: {missing_foot_geoms}")
 
     init_base_quat_norm = np.linalg.norm(init_base_quat)
     if init_base_quat_norm <= 0.0:
@@ -595,15 +583,7 @@ if __name__ == "__main__":
                 print(show_str, end='\r')
 
             if jump_manager is not None and counter % control_decimation == 0:
-                contacts = foot_contact_states(
-                    m,
-                    d,
-                    foot_geom_ids,
-                    float(jump_control_config.get("contact_threshold_n", 5.0)),
-                )
-                cmd = jump_manager.update(operator_cmd, contacts)
-                if jump_manager.fsm.timed_out:
-                    print("\nJump exit timed out before a complete landing.", flush=True)
+                cmd = jump_manager.update(operator_cmd)
 
             tau = pd_control(target_dof_pos, d.qpos[7:], kps, np.zeros_like(kds), d.qvel[6:], kds)
             d.ctrl[:] = tau[idx_ctrl_from_qpos]

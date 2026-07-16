@@ -23,17 +23,23 @@ def test_y_toggle_command_enters_and_leaves_jump_mode():
     np.testing.assert_array_equal(command, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
 
-def test_jump_manager_emits_training_command_after_ten_prep_ticks():
+def test_jump_manager_switches_immediately_without_contact_gating():
     manager = MODULE.JumpCommandManager(
         policy_dt=0.02,
-        config={"cycle_time": 1.5, "prep_steps": 10},
+        config={"cycle_time": 1.5},
     )
     request = np.asarray([0.5, 0.4, 0.5, -1.0, 0.0, 0.0], dtype=np.float32)
-    for _ in range(9):
-        np.testing.assert_array_equal(manager.update(request, [True] * 4), np.zeros(6))
-
-    command = manager.update(request, [True] * 4)
+    command = manager.update(request)
     np.testing.assert_allclose(command, [0.5, 0.0, 0.0, -1.0, 0.0, 1.0], atol=1e-7)
+
+    command = manager.update([0.2, 0.1, 0.3, 0.0])
+    np.testing.assert_allclose(command, [0.2, 0.1, 0.3, 0.0, 0.0, 0.0])
+
+
+def test_jump_manager_does_not_advance_phase_at_zero_velocity():
+    manager = MODULE.JumpCommandManager(0.02, {"cycle_time": 1.5})
+    command = manager.update([0.0, 0.0, 0.0, -1.0])
+    np.testing.assert_array_equal(command, [0.0, 0.0, 0.0, -1.0, 0.0, 0.0])
 
 
 def test_xbox_y_button_toggles_jump_request():
@@ -73,6 +79,8 @@ def test_jump_config_uses_direct_48d_policy_without_manifest():
     assert len(config["cmd_init"]) == 6
     assert config["jump_control"]["enabled"] is True
     assert "default_vx" not in config["jump_control"]
+    assert "prep_steps" not in config["jump_control"]
+    assert "landing_steps" not in config["jump_control"]
     assert "policy_path" in config
     assert "manifest" not in config
     assert "sha256" not in config

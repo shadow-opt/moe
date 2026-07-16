@@ -33,11 +33,6 @@ cmd_init: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 jump_control:
   enabled: true
   cycle_time: 1.5
-  prep_steps: 10
-  landing_steps: 3
-  exit_timeout_s: 2.0
-  contact_threshold_n: 5.0
-  foot_geom_names: [FL_foot, RL_foot, FR_foot, RR_foot]
 
 mujoco_joint_names: [
   "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
