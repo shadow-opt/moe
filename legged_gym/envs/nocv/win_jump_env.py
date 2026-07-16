@@ -33,6 +33,7 @@ class WINJumpRobot(WINRobot):
         self.active_mode = torch.full((n,), MODE_STAND, dtype=torch.long, device=device)
         self.target_commands = torch.zeros_like(self.commands)
         self.jump_phase_steps = torch.zeros(n, dtype=torch.long, device=device)
+        self.jump_pause_remaining = torch.zeros(n, dtype=torch.long, device=device)
         self.jump_motion_enabled = torch.zeros(n, dtype=torch.bool, device=device)
         self.jump_prep_remaining = torch.zeros(n, dtype=torch.long, device=device)
         self.jump_prep_just_started = torch.zeros(n, dtype=torch.bool, device=device)
@@ -81,6 +82,7 @@ class WINJumpRobot(WINRobot):
             self.active_mode[env_ids] = MODE_STAND
             self.target_commands[env_ids] = 0.0
             self.jump_phase_steps[env_ids] = 0
+            self.jump_pause_remaining[env_ids] = 0
             self.jump_motion_enabled[env_ids] = False
             self.jump_prep_remaining[env_ids] = 0
             self.jump_prep_just_started[env_ids] = False
@@ -112,6 +114,10 @@ class WINJumpRobot(WINRobot):
         self.target_commands[env_ids] = 0.0
         self.target_commands[env_ids, 0] = signs * magnitudes
         self.target_commands[env_ids, self.body_height_command_idx] = self.cfg.commands.jump_mode_command
+        idle_probability = getattr(self.cfg.commands, "idle_jump_sample_probability", 0.0)
+        if idle_probability > 0.0:
+            idle = torch.rand(len(env_ids), device=self.device) < idle_probability
+            self.target_commands[env_ids[idle], 0] = 0.0
 
     def _resample_commands(self, env_ids):
         if len(env_ids) == 0:
@@ -129,6 +135,25 @@ class WINJumpRobot(WINRobot):
 
         if len(walk_ids) > 0:
             super()._resample_commands(walk_ids)
+            turn_probability = getattr(
+                self.cfg.commands, "turn_command_sample_probability", 0.0
+            )
+            if turn_probability > 0.0:
+                turn_mask = torch.rand(len(walk_ids), device=self.device) < turn_probability
+                turn_ids = walk_ids[turn_mask]
+                if len(turn_ids) > 0:
+                    magnitudes = torch.empty(len(turn_ids), device=self.device).uniform_(
+                        self.cfg.commands.turn_command_min_abs_yaw,
+                        self.cfg.commands.turn_command_max_abs_yaw,
+                    )
+                    signs = torch.where(
+                        torch.rand(len(turn_ids), device=self.device) < 0.5,
+                        -torch.ones_like(magnitudes),
+                        torch.ones_like(magnitudes),
+                    )
+                    self.commands[turn_ids, :3] = 0.0
+                    self.commands[turn_ids, 2] = signs * magnitudes
+                    self.stop_heading[turn_ids] = True
             self.target_commands[walk_ids] = self.commands[walk_ids]
             self.target_commands[walk_ids, 5:7] = 0.0
             self.requested_mode[walk_ids] = MODE_WALK
@@ -166,7 +191,6 @@ class WINJumpRobot(WINRobot):
             continuing_ids = jump_ids[already_jumping]
             entering_ids = jump_ids[~already_jumping]
             if len(continuing_ids) > 0:
-                self.commands[continuing_ids, 0] = self.target_commands[continuing_ids, 0]
                 self.jump_exit_pending[continuing_ids] = False
             if len(entering_ids) > 0:
                 self.active_mode[entering_ids] = MODE_PREP
@@ -218,7 +242,6 @@ class WINJumpRobot(WINRobot):
             self.jump_prep_remaining[entering] = self.cfg.commands.jump_prep_steps
             self.jump_prep_just_started[entering] = True
             self._reset_mode_reward_state(entering)
-            self.commands[continuing, 0] = self.target_commands[continuing, 0]
             self.jump_exit_pending[continuing] = False
 
     def _enter_jump(self, env_ids):
@@ -230,6 +253,7 @@ class WINJumpRobot(WINRobot):
         self.commands[env_ids, self.body_height_command_idx] = self.cfg.commands.jump_mode_command
         # The phase updater increments enabled jumps once later in this callback.
         self.jump_phase_steps[env_ids] = -1
+        self.jump_pause_remaining[env_ids] = 0
         self.jump_motion_enabled[env_ids] = torch.abs(self.commands[env_ids, 0]) >= self.cfg.commands.jump_enable_threshold
         self.jump_exit_pending[env_ids] = False
         self.jump_seen_airborne[env_ids] = False
@@ -244,6 +268,7 @@ class WINJumpRobot(WINRobot):
         self.commands[env_ids] = self.target_commands[env_ids]
         self.commands[env_ids, 5:7] = 0.0
         self.jump_phase_steps[env_ids] = 0
+        self.jump_pause_remaining[env_ids] = 0
         self.jump_motion_enabled[env_ids] = False
         self.jump_exit_pending[env_ids] = False
         self.jump_seen_airborne[env_ids] = False
@@ -256,20 +281,42 @@ class WINJumpRobot(WINRobot):
         if not active.any():
             return
         ids = active.nonzero(as_tuple=False).flatten()
-        abs_vx = torch.abs(self.commands[ids, 0])
+        abs_vx = torch.abs(self.target_commands[ids, 0])
         enable = abs_vx >= self.cfg.commands.jump_enable_threshold
         disable = abs_vx < self.cfg.commands.jump_disable_threshold
-        self.jump_motion_enabled[ids[enable]] = True
-        self.jump_motion_enabled[ids[disable]] = False
-        disabled_ids = ids[~self.jump_motion_enabled[ids]]
+        requested_motion = self.jump_motion_enabled[ids].clone()
+        requested_motion[enable] = True
+        requested_motion[disable] = False
+
+        paused = requested_motion & (self.jump_pause_remaining[ids] > 0)
+        pause_ids = ids[paused]
+        if len(pause_ids) > 0:
+            self.jump_pause_remaining[pause_ids] -= 1
+        moving_ids = ids[requested_motion & ~paused]
+        disabled_ids = ids[~requested_motion]
+        self.jump_motion_enabled[ids] = False
+        self.jump_motion_enabled[moving_ids] = True
         self.jump_phase_steps[disabled_ids] = 0
-        enabled_ids = ids[self.jump_motion_enabled[ids]]
-        self.jump_phase_steps[enabled_ids] += 1
+        self.jump_phase_steps[pause_ids] = 0
+        self.jump_phase_steps[moving_ids] += 1
+
+        cycle_steps = max(int(round(self.cfg.commands.jump_cycle_time / self.dt)), 1)
+        completed = moving_ids[self.jump_phase_steps[moving_ids] >= cycle_steps]
+        if len(completed) > 0:
+            self.jump_phase_steps[completed] = 0
+            pause_steps = max(int(round(self.cfg.commands.jump_pause_time / self.dt)), 0)
+            self.jump_pause_remaining[completed] = pause_steps
+            self.jump_motion_enabled[completed] = False
+
         phase = self.jump_phase_steps[ids].float() * self.dt / self.cfg.commands.jump_cycle_time
+        self.commands[ids, 0] = 0.0
+        self.commands[moving_ids, 0] = self.target_commands[moving_ids, 0]
+        self.commands[completed, 0] = 0.0
         self.commands[ids, 1:3] = 0.0
         self.commands[ids, 5] = torch.sin(2.0 * math.pi * phase)
         self.commands[ids, 6] = torch.cos(2.0 * math.pi * phase)
-        self.commands[disabled_ids, 5:7] = 0.0
+        inactive_ids = ids[~self.jump_motion_enabled[ids]]
+        self.commands[inactive_ids, 5:7] = 0.0
 
     def _update_jump_fsm(self):
         prep_ids = (self.active_mode == MODE_PREP).nonzero(as_tuple=False).flatten()
@@ -386,7 +433,12 @@ class WINJumpRobot(WINRobot):
 
     def compute_reward(self):
         self.rew_buf[:] = 0.0
-        jump_mask = (self.active_mode == MODE_JUMP).float()
+        # Jump mode with a released vx command is a stationary command. Route it
+        # through the proven walking/standing reward set instead of rewarding
+        # takeoff merely because body_mode is -1.
+        jump_mask = (
+            (self.active_mode == MODE_JUMP) & self.jump_motion_enabled
+        ).float()
         walk_mask = 1.0 - jump_mask
         for name, reward_function in zip(self.reward_names, self.reward_functions):
             raw_reward = reward_function()

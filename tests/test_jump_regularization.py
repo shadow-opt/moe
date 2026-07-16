@@ -65,6 +65,21 @@ def test_walk_behavior_loss_ignores_jump_samples():
     assert algorithm.compute_walk_behavior_loss(observations, history).item() > 0.0
 
 
+def test_idle_jump_behavior_matches_neutral_reference_action():
+    model = _model()
+    algorithm = MoECTS(model, 4, 5, idle_jump_behavior_coef=1.0)
+    algorithm.set_frozen_reference()
+    history = torch.randn(4, 240)
+    observations = torch.randn(4, 48)
+    observations[:, 6] = 0.0
+    observations[:, 9] = -1.0
+    observations[:, 10:12] = 0.0
+    assert algorithm.compute_idle_jump_behavior_loss(observations, history).item() > 0.0
+
+    observations[:, 6] = 0.6
+    assert algorithm.compute_idle_jump_behavior_loss(observations, history).item() == 0.0
+
+
 def test_jump_symmetry_only_backpropagates_to_actor():
     model = _model()
     algorithm = MoECTS(model, 4, 5, jump_symmetry=True)

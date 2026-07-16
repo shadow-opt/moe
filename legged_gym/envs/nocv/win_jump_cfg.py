@@ -28,12 +28,15 @@ class WINJumpCfg(WINFlatSlowCfg):
         jump_sample_probability = 0.60
         walk_sample_probability = 0.30
         stand_sample_probability = 0.10
+        idle_jump_sample_probability = 0.0
         jump_min_abs_vx = 0.30
         jump_initial_max_abs_vx = 0.80
         jump_unlocked_max_abs_vx = 1.00
         jump_enable_threshold = 0.30
         jump_disable_threshold = 0.20
         jump_cycle_time = 1.50
+        jump_pause_time = 0.0
+        turn_command_sample_probability = 0.0
         cyclic_jump_phase = False
         jump_prep_steps = 10
         jump_landing_contact_steps = 3
@@ -201,3 +204,29 @@ class WINJumpCyclicScratchCfgMoECTS(WINJumpCyclicCfgMoECTS):
     class runner(WINJumpCyclicCfgMoECTS.runner):
         run_name = "jump_scratch_cyclic_phase"
         experiment_name = "win_jump_cyclic_scratch_moe_cts"
+
+
+class WINJumpRecoveryCfg(WINJumpCyclicCfg):
+    """Short post-training task that teaches jump mode to idle at zero vx."""
+
+    class commands(WINJumpCyclicCfg.commands):
+        # 25% of jump-mode samples keep body_mode=-1 while commanding zero
+        # velocity and zero phase, matching a released deployment joystick.
+        idle_jump_sample_probability = 0.25
+        jump_pause_time = 0.75
+        turn_command_sample_probability = 0.20
+        turn_command_min_abs_yaw = 0.40
+        turn_command_max_abs_yaw = 1.00
+
+
+class WINJumpRecoveryCfgMoECTS(WINJumpCyclicCfgMoECTS):
+    class algorithm(WINJumpCyclicCfgMoECTS.algorithm):
+        learning_rate = 5.0e-5
+        max_learning_rate = 5.0e-5
+        idle_jump_behavior_coef = 1.0
+
+    class runner(WINJumpCyclicCfgMoECTS.runner):
+        run_name = "jump_zero_vx_recovery"
+        experiment_name = "win_jump_recovery_moe_cts"
+        max_iterations = 2000
+        save_interval = 250

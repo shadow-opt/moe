@@ -63,6 +63,7 @@ class MoECTS(CTS):
                 min_learning_rate=1e-5,
                 max_learning_rate=1e-2,
                 walk_behavior_coef=0.0,
+                idle_jump_behavior_coef=0.0,
                 jump_symmetry=False,
                 jump_symmetry_start_coef=0.0,
                 jump_symmetry_end_coef=0.0,
@@ -80,6 +81,7 @@ class MoECTS(CTS):
         self.max_learning_rate = max_learning_rate
         self.history_length = history_length
         self.walk_behavior_coef = walk_behavior_coef
+        self.idle_jump_behavior_coef = idle_jump_behavior_coef
         self.jump_symmetry = jump_symmetry
         self.jump_symmetry_start_coef = jump_symmetry_start_coef
         self.jump_symmetry_end_coef = jump_symmetry_end_coef
@@ -129,7 +131,7 @@ class MoECTS(CTS):
             self.jump_mirror = JumpMirror(dof_names, self.device)
 
     def set_frozen_reference(self):
-        if self.walk_behavior_coef <= 0.0:
+        if self.walk_behavior_coef <= 0.0 and self.idle_jump_behavior_coef <= 0.0:
             return
         self.reference_actor = copy.deepcopy(self.model.actor).to(self.device).eval()
         self.reference_student_encoder = copy.deepcopy(self.model.student_moe_encoder).to(self.device).eval()
@@ -183,6 +185,44 @@ class MoECTS(CTS):
         )
         return (current_mean - reference_mean).pow(2).mean()
 
+    def compute_idle_jump_behavior_loss(self, obs_batch, history_batch):
+        """Match zero-vx jump mode to the frozen policy's neutral stand action."""
+        loss = torch.zeros((), device=self.device)
+        if self.idle_jump_behavior_coef <= 0.0:
+            return loss
+        if self.reference_actor is None:
+            raise RuntimeError(
+                "idle_jump_behavior_coef requires a frozen reference; use --warmstart_path"
+            )
+        idle_jump = (
+            (obs_batch[:, self.jump_body_mode_obs_index] < -0.5)
+            & (obs_batch[:, 6].abs() < 1.0e-4)
+            & (obs_batch[:, 10:12].abs().amax(dim=1) < 1.0e-4)
+        )
+        if not idle_jump.any():
+            return loss
+
+        current_obs = obs_batch[idle_jump]
+        current_history = history_batch[idle_jump]
+        neutral_obs = current_obs.detach().clone()
+        neutral_obs[:, self.jump_body_mode_obs_index] = 0.0
+        neutral_obs[:, 10:12] = 0.0
+        neutral_history = current_history.detach().clone().reshape(-1, self.history_length, 48)
+        neutral_history[:, :, self.jump_body_mode_obs_index] = 0.0
+        neutral_history[:, :, 10:12] = 0.0
+        neutral_history = neutral_history.reshape_as(current_history)
+
+        with torch.no_grad():
+            current_latent, _ = self.model.student_moe_encoder(current_history)
+            reference_latent, _ = self.reference_student_encoder(neutral_history)
+            reference_mean = self.reference_actor(
+                torch.cat([reference_latent, neutral_obs], dim=1)
+            )
+        current_mean = self.model.actor(
+            torch.cat([current_latent.detach(), current_obs], dim=1)
+        )
+        return (current_mean - reference_mean).pow(2).mean()
+
     def compute_jump_symmetry_loss(self, student_obs, student_history, original_mean):
         loss = torch.zeros((), device=self.device)
         if not self.jump_symmetry or self.jump_mirror is None:
@@ -210,6 +250,7 @@ class MoECTS(CTS):
         mean_latent_loss = 0
         mean_load_balance_loss = 0
         mean_walk_behavior_loss = 0
+        mean_idle_jump_behavior_loss = 0
         mean_jump_symmetry_loss = 0
         total_jump_symmetry_samples = 0
         expert_usage_jump = None
@@ -295,6 +336,7 @@ class MoECTS(CTS):
             # value_loss = teacher_value_loss  # + student_value_loss
 
             walk_behavior_loss = self.compute_walk_behavior_loss(obs_batch, history_batch)
+            idle_jump_behavior_loss = self.compute_idle_jump_behavior_loss(obs_batch, history_batch)
 
             jump_symmetry_loss, jump_symmetry_samples = self.compute_jump_symmetry_loss(
                 obs_batch[teacher_samples:],
@@ -308,6 +350,7 @@ class MoECTS(CTS):
                 + self.value_loss_coef * value_loss
                 - self.entropy_coef * entropy_batch.mean()
                 + self.walk_behavior_coef * walk_behavior_loss
+                + self.idle_jump_behavior_coef * idle_jump_behavior_loss
                 + symmetry_coef * jump_symmetry_loss
             )
 
@@ -322,6 +365,7 @@ class MoECTS(CTS):
             mean_surrogate_loss += surrogate_loss.item()
             mean_entropy_loss += entropy_batch.mean().item()
             mean_walk_behavior_loss += walk_behavior_loss.item()
+            mean_idle_jump_behavior_loss += idle_jump_behavior_loss.item()
             mean_jump_symmetry_loss += jump_symmetry_loss.item()
             total_jump_symmetry_samples += jump_symmetry_samples
         
@@ -377,9 +421,11 @@ class MoECTS(CTS):
         mean_latent_loss /= num_updates
         mean_load_balance_loss /= num_updates
         mean_walk_behavior_loss /= num_updates
+        mean_idle_jump_behavior_loss /= num_updates
         mean_jump_symmetry_loss /= num_updates
         metrics = {
             "walk_behavior_loss": mean_walk_behavior_loss,
+            "idle_jump_behavior_loss": mean_idle_jump_behavior_loss,
             "jump_symmetry_loss": mean_jump_symmetry_loss,
             "jump_symmetry_weighted_loss": mean_jump_symmetry_loss * self._symmetry_coef(),
             "jump_symmetry_coef": self._symmetry_coef(),

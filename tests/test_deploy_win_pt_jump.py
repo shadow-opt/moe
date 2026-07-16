@@ -42,6 +42,17 @@ def test_jump_manager_does_not_advance_phase_at_zero_velocity():
     np.testing.assert_array_equal(command, [0.0, 0.0, 0.0, -1.0, 0.0, 0.0])
 
 
+def test_jump_manager_inserts_zero_command_pause_between_hops():
+    manager = MODULE.JumpCommandManager(
+        0.02, {"cycle_time": 0.06, "pause_time": 0.04}
+    )
+    request = [0.5, 0.0, 0.0, -1.0]
+    outputs = [manager.update(request) for _ in range(7)]
+    assert [float(output[0]) for output in outputs] == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.5]
+    for output in outputs[3:6]:
+        np.testing.assert_array_equal(output, [0.0, 0.0, 0.0, -1.0, 0.0, 0.0])
+
+
 def test_xbox_y_button_toggles_jump_request():
     class Joystick:
         def __init__(self):

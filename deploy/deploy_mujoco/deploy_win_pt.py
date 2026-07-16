@@ -144,7 +144,11 @@ class JumpCommandManager:
     def __init__(self, policy_dt, config):
         self.policy_dt = float(policy_dt)
         self.cycle_time = float(config.get("cycle_time", 1.5))
+        self.pause_time = float(config.get("pause_time", 0.75))
+        self.cycle_steps = max(int(round(self.cycle_time / self.policy_dt)), 1)
+        self.pause_steps = max(int(round(self.pause_time / self.policy_dt)), 0)
         self.phase_steps = -1
+        self.pause_remaining = 0
         self.jump_active = False
         self.motion_enabled = False
 
@@ -153,6 +157,7 @@ class JumpCommandManager:
         jump_requested = request[3] < -0.5
         if not jump_requested:
             self.phase_steps = -1
+            self.pause_remaining = 0
             self.jump_active = False
             self.motion_enabled = False
             command = np.zeros(6, dtype=np.float32)
@@ -161,6 +166,7 @@ class JumpCommandManager:
 
         if not self.jump_active:
             self.phase_steps = -1
+            self.pause_remaining = 0
             self.jump_active = True
         request[1:3] = 0.0
         request[3] = -1.0
@@ -170,12 +176,26 @@ class JumpCommandManager:
         elif speed < 0.2:
             self.motion_enabled = False
         if self.motion_enabled:
-            self.phase_steps += 1
-            phase = self.phase_steps * self.policy_dt / self.cycle_time
-            phase_sin = np.sin(2.0 * np.pi * phase)
-            phase_cos = np.cos(2.0 * np.pi * phase)
+            if self.pause_remaining > 0:
+                self.pause_remaining -= 1
+                request[0] = 0.0
+                phase_sin = 0.0
+                phase_cos = 0.0
+            else:
+                self.phase_steps += 1
+                if self.phase_steps >= self.cycle_steps:
+                    self.phase_steps = -1
+                    self.pause_remaining = self.pause_steps
+                    request[0] = 0.0
+                    phase_sin = 0.0
+                    phase_cos = 0.0
+                else:
+                    phase = self.phase_steps * self.policy_dt / self.cycle_time
+                    phase_sin = np.sin(2.0 * np.pi * phase)
+                    phase_cos = np.cos(2.0 * np.pi * phase)
         else:
             self.phase_steps = -1
+            self.pause_remaining = 0
             phase_sin = 0.0
             phase_cos = 0.0
         return np.asarray([*request, phase_sin, phase_cos], dtype=np.float32)

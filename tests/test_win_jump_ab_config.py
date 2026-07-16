@@ -14,6 +14,8 @@ from legged_gym.envs.nocv.win_jump_cfg import (
     WINJumpCyclicCfgMoECTS,
     WINJumpCyclicScratchCfg,
     WINJumpCyclicScratchCfgMoECTS,
+    WINJumpRecoveryCfg,
+    WINJumpRecoveryCfgMoECTS,
 )
 from legged_gym.envs.nocv.win_jump_env import MODE_JUMP, MODE_WALK, WINJumpRobot
 from legged_gym.scripts.evaluate_z2_jump import SUPPORTED_TASKS
@@ -21,6 +23,17 @@ from legged_gym.utils.helpers import class_to_dict
 
 
 class WinJumpABConfigTests(unittest.TestCase):
+    def test_recovery_task_targets_zero_vx_jump_mode(self):
+        env = class_to_dict(WINJumpRecoveryCfg())
+        train = class_to_dict(WINJumpRecoveryCfgMoECTS())
+        self.assertTrue(env["commands"]["cyclic_jump_phase"])
+        self.assertEqual(env["commands"]["idle_jump_sample_probability"], 0.25)
+        self.assertEqual(env["commands"]["jump_pause_time"], 0.75)
+        self.assertEqual(env["commands"]["turn_command_sample_probability"], 0.20)
+        self.assertEqual(train["algorithm"]["idle_jump_behavior_coef"], 1.0)
+        self.assertEqual(train["runner"]["max_iterations"], 2000)
+        self.assertIsNotNone(task_registry.get_task_class("win_jump_recovery_moe_cts"))
+
     def test_environment_configs_only_differ_in_phase_mode(self):
         legacy = copy.deepcopy(class_to_dict(WINJumpCfg()))
         cyclic = copy.deepcopy(class_to_dict(WINJumpCyclicCfg()))
